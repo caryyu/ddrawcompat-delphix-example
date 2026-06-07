@@ -1,0 +1,186 @@
+01:24:34.632 Process path: D:\Personal Source Codes\MyM2Space\ClientIPLegacy\ddrawcompat-delphix-example\bin\DDrawCompatDelphiXExample.exe
+01:24:34.632 Loading DDrawCompat dynamically from D:\Personal Source Codes\MyM2Space\ClientIPLegacy\ddrawcompat-delphix-example\bin\DDraw.dll
+01:24:34.632 DDrawCompat version: v0.7.1
+01:24:34.632 Windows version: 10.0.19045
+01:24:34.632 Environment variable __COMPAT_LAYER = "16BitColor"
+01:24:34.632 Loading global config file: C:\ProgramData\DDrawCompat\DDrawCompat.ini
+01:24:34.633   File not found, skipping
+01:24:34.633 Loading user config file: C:\Users\caryyu\AppData\Local\DDrawCompat\DDrawCompat.ini
+01:24:34.633   File not found, skipping
+01:24:34.633 Loading directory config file: D:\Personal Source Codes\MyM2Space\ClientIPLegacy\ddrawcompat-delphix-example\bin\DDrawCompat.ini
+01:24:34.633   File not found, skipping
+01:24:34.633 Loading process config file: D:\Personal Source Codes\MyM2Space\ClientIPLegacy\ddrawcompat-delphix-example\bin\DDrawCompat-DDrawCompatDelphiXExample.ini
+01:24:34.633   File not found, skipping
+01:24:34.633 Loading overlay config file: D:\Personal Source Codes\MyM2Space\ClientIPLegacy\ddrawcompat-delphix-example\bin\DDrawCompatOverlay-DDrawCompatDelphiXExample.ini
+01:24:34.633   File not found, skipping
+01:24:34.633 Final configuration:
+01:24:34.633   [default] AltTabFix               = off
+01:24:34.633   [default] AlternatePixelCenter    = off
+01:24:34.633   [default] Antialiasing            = off
+01:24:34.633   [default] BltFilter               = point
+01:24:34.633   [default] CapsPatches             = none
+01:24:34.633   [default] ColorKeyMethod          = alphatest(1)
+01:24:34.633   [default] CompatFixes             = none
+01:24:34.633   [default] ConfigHotKey            = shift+f11
+01:24:34.633   [default] ConfigRows              = allrw, allro
+01:24:34.633   [default] ConfigTransparency      = alpha(90)
+01:24:34.633   [default] CpuAffinity             = 1
+01:24:34.633   [default] CpuAffinityRotation     = on
+01:24:34.633   [default] CrashDump               = off
+01:24:34.633   [default] DepthFormat             = app
+01:24:34.633   [default] DesktopColorDepth       = initial
+01:24:34.633   [default] DesktopResolution       = desktop
+01:24:34.633   [default] DisplayAspectRatio      = app
+01:24:34.633   [default] DisplayFilter           = bilinear(0)
+01:24:34.633   [default] DisplayRefreshRate      = app
+01:24:34.633   [default] DisplayResolution       = desktop
+01:24:34.633   [default] DpiAwareness            = permonitor
+01:24:34.633   [default] EnableDDrawCompat       = on
+01:24:34.633   [default] FontAntialiasing        = app
+01:24:34.633   [default] ForceD3D9On12           = off
+01:24:34.633   [default] FpsLimiter              = off
+01:24:34.633   [default] FullscreenMode          = borderless
+01:24:34.633   [default] GdiInterops             = all
+01:24:34.633   [default] LogLevel                = info
+01:24:34.633   [default] MousePollingRate        = native
+01:24:34.633   [default] MouseSensitivity        = desktop(100)
+01:24:34.633   [default] PalettizedTextures      = off
+01:24:34.633   [default] PresentDelay            = on(10)
+01:24:34.633   [default] RenderColorDepth        = 32
+01:24:34.633   [default] ResolutionScale         = app(1)
+01:24:34.633   [default] ResolutionScaleFilter   = point
+01:24:34.633   [default] SoftwareDevice          = rgb
+01:24:34.633   [default] SpriteAltPixelCenter    = apc
+01:24:34.633   [default] SpriteDetection         = off
+01:24:34.633   [default] SpriteFilter            = app
+01:24:34.633   [default] SpriteTexCoord          = app
+01:24:34.633   [default] StatsAggregateTime      = 3
+01:24:34.633   [default] StatsColumns            = label, cur, avg, min, max
+01:24:34.633   [default] StatsHotKey             = shift+f12
+01:24:34.633   [default] StatsPosX               = right
+01:24:34.633   [default] StatsPosY               = top
+01:24:34.633   [default] StatsRows               = label, presentrate, fliprate, blitcount, lockcount
+01:24:34.633   [default] StatsTransparency       = alpha(75)
+01:24:34.633   [default] StatsUpdateRate         = 5
+01:24:34.633   [default] SupportedDepthFormats   = all
+01:24:34.633   [default] SupportedDevices        = all
+01:24:34.633   [default] SupportedRefreshRates   = native
+01:24:34.633   [default] SupportedResolutions    = native, 640x480, 800x600, 1024x768
+01:24:34.633   [default] SupportedTextureFormats = all
+01:24:34.633   [default] SurfacePatches          = none
+01:24:34.633   [default] TerminateHotKey         = ctrl+alt+end
+01:24:34.633   [default] TextureFilter           = app
+01:24:34.633   [default] ThreadPriorityBoost     = off
+01:24:34.633   [default] VSync                   = app
+01:24:34.633   [default] VertexBufferMemoryType  = sysmem
+01:24:34.633   [default] VertexFixup             = gpu
+01:24:34.633   [default] ViewportEdgeFix         = off
+01:24:34.633   [default] WinVersionLie           = off
+01:24:34.635 Initial DPI awareness: unaware
+01:24:34.635 DPI awareness was successfully changed to "permonitor" via SetProcessDpiAwarenessContext
+01:24:34.635 Primary CPU group number: 0
+01:24:34.635 Physical to logical CPU core mapping for efficiency class 0:
+01:24:34.635   Physical core #1: 1, 2
+01:24:34.635   Physical core #2: 3, 4
+01:24:34.635   Physical core #3: 5, 6
+01:24:34.635   Physical core #4: 7, 8
+01:24:34.635   Physical core #5: 9, 10
+01:24:34.635   Physical core #6: 11, 12
+01:24:34.635 Process priority class: 32
+01:24:34.635 Current CPU affinity: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+01:24:34.635 Applying configured CPU affinity: 1
+01:24:34.635 CPU affinity rotation is enabled
+01:24:34.663 DDrawCompat loaded successfully
+01:24:34.710 Installing display mode hooks
+01:24:34.710 Initial display mode: 1920x1080, 16 bpp, 60 Hz
+01:24:34.721 Installing registry hooks
+01:24:34.722 Installing Direct3D driver hooks
+01:24:34.770 Hooking user mode display driver: C:\Windows\System32\DriverStore\FileRepository\nv_dispig.inf_amd64_0afec3f2050014a0\nvldumd.dll+0x259d0
+01:24:34.770 Driver version: 32.0.15.6094
+01:24:34.770 Adapter name: NVIDIA GeForce RTX 3060
+01:24:34.770 Supported resource formats:
+01:24:34.770   {D3DDDIFMT_X1R5G5B5,0x48e10f,0x0,0x0,0}
+01:24:34.770   {D3DDDIFMT_A1R5G5B5,0xe007,0x0,0x0,0}
+01:24:34.770   {D3DDDIFMT_A4R4G4B4,0xe007,0x0,0x0,0}
+01:24:34.770   {D3DDDIFMT_R5G6B5,0x48ed0f,0x8b,0x8b,0}
+01:24:34.770   {D3DDDIFMT_X8R8G8B8,0x58ed0f,0x8b,0x8b,0}
+01:24:34.770   {D3DDDIFMT_A8R8G8B8,0x58e10f,0x8b,0x8b,0}
+01:24:34.770   {FOURCC(NV12),0x4007000,0x0,0x0,12}
+01:24:34.770   {FOURCC(444S),0x4007000,0x0,0x0,24}
+01:24:34.770   {FOURCC(S410),0x4007000,0x0,0x0,16}
+01:24:34.770   {FOURCC(P010),0x4007000,0x0,0x0,16}
+01:24:34.770   {FOURCC(NV24),0x4007000,0x0,0x0,12}
+01:24:34.771   {FOURCC(YV12),0x4007000,0x0,0x0,12}
+01:24:34.771   {FOURCC(UYVY),0x4007000,0x0,0x0,16}
+01:24:34.771   {FOURCC(YUY2),0x4007000,0x0,0x0,16}
+01:24:34.771   {FOURCC(AI44),0x5000,0x0,0x0,8}
+01:24:34.771   {FOURCC(AYUV),0x5000,0x0,0x0,32}
+01:24:34.771   {FOURCC(AIP8),0x5000,0x0,0x0,8}
+01:24:34.771   {FOURCC(AV12),0x5000,0x0,0x0,12}
+01:24:34.771   {FOURCC(PLFF),0x4000,0x0,0x0,0}
+01:24:34.771   {FOURCC(NVMD),0x4000,0x0,0x0,0}
+01:24:34.771   {FOURCC(NVDP),0x4000,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_A8P8,0x5000,0x0,0x0,16}
+01:24:34.771   {D3DDDIFMT_R8,0x40400f,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_G8R8,0xd,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_V8U8,0x10001,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_X8L8V8U8,0x10001,0x0,0x0,0}
+01:24:34.771   {FOURCC(DXT1),0x8007,0x0,0x0,0}
+01:24:34.771   {FOURCC(DXT2),0x8007,0x0,0x0,0}
+01:24:34.771   {FOURCC(DXT3),0x8007,0x0,0x0,0}
+01:24:34.771   {FOURCC(DXT4),0x8007,0x0,0x0,0}
+01:24:34.771   {FOURCC(DXT5),0x8007,0x0,0x0,0}
+01:24:34.771   {FOURCC(NVCS),0xd,0x0,0x0,0}
+01:24:34.771   {FOURCC(NVHU),0x5,0x0,0x0,0}
+01:24:34.771   {FOURCC(NVHS),0x5,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_D16,0xc1,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_D24X8,0xc1,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_D24S8,0xc1,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_D32F_LOCKABLE,0xc1,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_S8D24,0xc1,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_X8D24,0xc1,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_Q8W8V8U8,0x5,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_L8,0x40800f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_A8,0xf,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_L16,0x40000f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_A8L8,0x8007,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_G16R16,0x40400f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_A16B16G16R16,0x40600f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_V16U16,0x7,0x0,0x0,0}
+01:24:34.771   {FOURCC(NVDB),0x4000,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_BINARYBUFFER,0x4000,0x0,0x0,0}
+01:24:34.771   {FOURCC(NULL),0x100009,0x8b,0x8b,0}
+01:24:34.771   {FOURCC(ATI1),0x1005,0x0,0x0,8}
+01:24:34.771   {FOURCC(ATI2),0x1005,0x0,0x0,8}
+01:24:34.771   {FOURCC(INTZ),0x10c1,0x0,0x0,32}
+01:24:34.771   {D3DDDIFMT_P8,0x4400,0x0,0x0,0}
+01:24:34.771   {FOURCC(SSAA),0x4000,0x0,0x0,0}
+01:24:34.771   {FOURCC(ATOC),0x4000,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_A2B10G10R10,0x48610f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_A2R10G10B10,0x486d0f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_A8R8G8B8,0xc8610f,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_A8R8G8B8,0x448610f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_X8R8G8B8,0x4486d0f,0x8b,0x8b,0}
+01:24:34.771   {FOURCC(3x11),0x40700f,0x8b,0x8b,32}
+01:24:34.771   {FOURCC(3x16),0x407d0f,0x8b,0x8b,64}
+01:24:34.771   {D3DDDIFMT_A16B16G16R16F,0x48610f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_G16R16F,0x40400f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_R16F,0x40400f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_R32F,0x40400f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_G32R32F,0x40400f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_A32B32G32R32F,0x48600f,0x8b,0x8b,0}
+01:24:34.771   {D3DDDIFMT_R16F,0xc0400f,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_G16R16F,0xc0400f,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_A16B16G16R16F,0xc0400f,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_R32F,0xc0400f,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_G32R32F,0xc0400f,0x0,0x0,0}
+01:24:34.771   {D3DDDIFMT_A32B32G32R32F,0xc0400f,0x0,0x0,0}
+01:24:34.771 Supported z-buffer bit depths: 16, 24
+01:24:34.771 Supported MSAA modes: msaa(3), msaa2x(0), msaa4x(0), msaa8x(0)
+01:24:34.909 Installing DirectDraw hooks
+01:24:34.910 Installing Direct3D hooks
+01:24:34.912 Installing GDI hooks
+01:24:34.915 Finished installing hooks
+01:24:34.919 Using resource format: D3DDDIFMT_R5G6B5, primary, anymem -> vidmem
+01:24:34.919 Using resource format: D3DDDIFMT_R5G6B5, plain, sysmem
+01:25:45.411 DDrawCompat detached successfully
