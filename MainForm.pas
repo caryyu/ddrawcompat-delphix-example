@@ -96,7 +96,7 @@ begin
   FInfoLabel.Caption :=
     'This sample uses a DelphiX TDXDraw child window in windowed blit mode. ' +
     'DelphiX creates a DirectDraw primary surface, attaches an HWND clipper to the TDXDraw window, ' +
-    'and this sample manually calls Primary.Draw to a screen-coordinate form client rect. Stress mode forces sibling child HWND z-order and redraw timing every frame.';
+    'and this sample manually calls Primary.Draw to a screen-coordinate form client rect. Mild stress mode only brings sibling child HWNDs to front and invalidates them.';
 
   FTimer := TTimer.Create(Self);
   FTimer.Interval := 16;
@@ -187,7 +187,7 @@ begin
     C.Font.Size := 12;
     C.TextOut(28, 28, 'Manual Primary.Draw frame: ' + IntToStr(FFrame));
     C.TextOut(28, 300, 'This bypasses TDXDraw.Flip and blits to the form client rect in screen coordinates.');
-    C.TextOut(28, 324, 'Stress mode redraws sibling child HWNDs after each primary draw.');
+    C.TextOut(28, 324, 'Mild stress mode calls BringToFront and Invalidate on sibling child HWNDs.');
     C.Brush.Style := bsSolid;
   finally
     FDXDraw.Surface.Canvas.Release;
@@ -205,28 +205,18 @@ end;
 
 procedure TMainForm.StressChildWindows;
 begin
-  if (FFrame mod 120) = 0 then
-    FEdit.Visible := False
-  else if (FFrame mod 120) = 3 then
-  begin
-    FEdit.Visible := True;
-    Windows.SetFocus(FEdit.Handle);
-  end;
+  if (FFrame mod 180) = 0 then
+    FEdit.Text := Format('Sibling TEdit mild stress frame %d', [FFrame]);
 
-  if (FFrame mod 30) = 0 then
-    FEdit.Text := Format('Sibling TEdit redraw stress frame %d', [FFrame]);
-
-  SetWindowPos(FDXDraw.Handle, HWND_BOTTOM, 0, 0, 0, 0,
-    SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
   FEdit.BringToFront;
   FButton.BringToFront;
   FStressCheck.BringToFront;
   FMemo.BringToFront;
 
-  RedrawWindow(FEdit.Handle, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW or RDW_ERASE);
-  RedrawWindow(FButton.Handle, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW or RDW_ERASE);
-  RedrawWindow(FStressCheck.Handle, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW or RDW_ERASE);
-  RedrawWindow(FMemo.Handle, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW or RDW_ERASE);
+  FEdit.Invalidate;
+  FButton.Invalidate;
+  FStressCheck.Invalidate;
+  FMemo.Invalidate;
 end;
 
 procedure TMainForm.WMEraseBkgnd(var Message: TWMEraseBkgnd);

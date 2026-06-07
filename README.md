@@ -2,6 +2,8 @@
 
 This is a minimal Delphi 2007 / VCL repro for DirectDraw primary-surface presentation over native child windows.
 
+The current repro is intentionally mild. It is meant to compare wrapper behavior under the same native child-window invalidation pressure, not to force repaint failure with extreme Win32 calls.
+
 The sample intentionally mirrors a common DelphiX windowed rendering path:
 
 - A `TDXDraw` control is created as a child window of the main VCL form.
@@ -12,7 +14,7 @@ The sample intentionally mirrors a common DelphiX windowed rendering path:
 - Native sibling child HWNDs (`TEdit`, `TButton`, and `TMemo`) overlap the `TDXDraw` child window.
 - The parent form is given `WS_CLIPCHILDREN | WS_CLIPSIBLINGS`.
 - The `TDXDraw` child window is given `WS_CLIPSIBLINGS`.
-- Stress mode is enabled by default. After each primary draw it forces sibling child HWND z-order and repaint timing, periodically hides/shows the `TEdit`, and updates its text.
+- Mild stress mode is enabled by default. After each primary draw it brings sibling child HWNDs to the front and invalidates them. It also updates the `TEdit` text occasionally.
 
 ## Build
 
@@ -43,7 +45,7 @@ Expected good behavior:
 
 - The overlapping `TEdit`, `TButton`, and `TMemo` remain visible and stable.
 - DirectDraw animation continues behind them without covering or flickering through the child controls.
-- With stress mode enabled, the `TEdit` is intentionally hidden for a few frames every 120 frames. Apart from that deliberate pulse, child controls should remain stable.
+- With mild stress mode enabled, child controls should still remain stable.
 
 Problem behavior:
 
@@ -51,7 +53,27 @@ Problem behavior:
 - Child controls disappear intermittently.
 - DirectDraw primary blits cover the child controls.
 
-The `Stress child HWND redraw` checkbox can be disabled at runtime to compare the same primary-draw path without forced child-window repaint pressure.
+The `Stress child HWND redraw` checkbox can be disabled at runtime to compare the same primary-draw path without child-window invalidation pressure.
+
+## Current Observation
+
+The basic path without stress behaves normally. The earlier aggressive stress test was not useful because it could also produce visible flicker with dgVoodoo2.
+
+The current mild stress mode only performs normal sibling child-window operations after each primary draw:
+
+```pascal
+FEdit.BringToFront;
+FButton.BringToFront;
+FMemo.BringToFront;
+
+FEdit.Invalidate;
+FButton.Invalidate;
+FMemo.Invalidate;
+```
+
+The `TEdit` text is updated only occasionally. This version does not use `RedrawWindow(... RDW_UPDATENOW | RDW_ERASE)`, does not hide/show the `TEdit`, and does not call `SetWindowPos(DXDraw, HWND_BOTTOM)` every frame.
+
+Under this milder repro, DDrawCompat flickers much more heavily, while dgVoodoo2 is significantly more stable under the same test. This points to a synchronization difference between DirectDraw primary presentation and native sibling child-window invalidation/repaint timing.
 
 ## Relevant DelphiX Calls
 
