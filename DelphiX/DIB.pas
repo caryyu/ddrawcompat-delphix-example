@@ -1,0 +1,4857 @@
+unit DIB;
+
+interface
+
+{$INCLUDE DelphiXcfg.inc}
+
+uses
+  Windows, SysUtils, Classes, Graphics, Controls;
+
+type
+  TRGBQuads = array[0..255] of TRGBQuad;
+
+  TPaletteEntries = array[0..255] of TPaletteEntry;
+
+  PBGR = ^TBGR;
+  TBGR = packed record
+    B, G, R: Byte;
+  end;
+
+  {   Added this type for New SPecial Effect   }
+  TFilter = array [0..2,0..2] of SmallInt;
+  TLines = array [0..0] of TBGR;
+  PLines = ^TLines;
+  TBytes  = array[0..0] of Byte;
+  PBytes  = ^TBytes;
+  TPBytes = array [0..0] of PBytes;
+  PPBytes = ^TPBytes;
+  {   End of type's   }
+
+  PArrayBGR = ^TArrayBGR;
+  TArrayBGR = array[0..10000] of TBGR;
+
+  PArrayByte = ^TArrayByte;
+  TArrayByte = array[0..10000] of Byte;
+
+  PArrayWord = ^TArrayWord;
+  TArrayWord = array[0..10000] of Word;
+
+  PArrayDWord = ^TArrayDWord;
+  TArrayDWord = array[0..10000] of DWord;
+
+  {  TDIB  }
+
+  TDIBPixelFormat = record
+    RBitMask, GBitMask, BBitMask: DWORD;
+    RBitCount, GBitCount, BBitCount: DWORD;
+    RShift, GShift, BShift: DWORD;
+    RBitCount2, GBitCount2, BBitCount2: DWORD;
+  end;
+
+  TDIBSharedImage = class(TSharedImage)
+  private       
+    FBitCount: Integer;
+    FBitmapInfo: PBitmapInfo;
+    FBitmapInfoSize: Integer;
+    FChangePalette: Boolean;
+    FColorTable: TRGBQuads;
+    FColorTablePos: Integer;
+    FCompressed: Boolean;
+    FDC: THandle;
+    FHandle: THandle;
+    FHeight: Integer;
+    FMemoryImage: Boolean;
+    FNextLine: Integer;
+    FOldHandle: THandle;
+    FPalette: HPalette;
+    FPaletteCount: Integer;
+    FPBits: Pointer;
+    FPixelFormat: TDIBPixelFormat;
+    FSize: Integer;
+    FTopPBits: Pointer;
+    FWidth: Integer;
+    FWidthBytes: Integer;
+    constructor Create;
+    procedure NewImage(AWidth, AHeight, ABitCount: Integer;
+      const PixelFormat: TDIBPixelFormat; const ColorTable: TRGBQuads; MemoryImage, Compressed: Boolean);
+    procedure Duplicate(Source: TDIBSharedImage; MemoryImage: Boolean);
+    procedure Compress(Source: TDIBSharedImage);
+    procedure Decompress(Source: TDIBSharedImage; MemoryImage: Boolean);
+    procedure ReadData(Stream: TStream; MemoryImage: Boolean);
+    function GetPalette: THandle;
+    procedure SetColorTable(const Value: TRGBQuads);
+  protected
+    procedure FreeHandle; override;
+  public
+    destructor Destroy; override;
+  end;
+
+  TDIB = class(TGraphic)
+  private
+    FCanvas: TCanvas;
+    FImage: TDIBSharedImage;
+
+    FProgressName: string;
+    FProgressOldY: DWORD;
+    FProgressOldTime: DWORD;
+    FProgressOld: DWORD;
+    FProgressY: DWORD;
+    {  For speed-up  }
+    FBitCount: Integer;
+    FHeight: Integer;
+    FNextLine: Integer;
+    FNowPixelFormat: TDIBPixelFormat;
+    FPBits: Pointer;
+    FSize: Integer;
+    FTopPBits: Pointer;
+    FWidth: Integer;
+    FWidthBytes: Integer;
+    procedure AllocHandle;
+    procedure CanvasChanging(Sender: TObject);
+    procedure Changing(MemoryImage: Boolean);
+    procedure ConvertBitCount(ABitCount: Integer);
+    function GetBitmapInfo: PBitmapInfo;
+    function GetBitmapInfoSize: Integer;
+    function GetCanvas: TCanvas;
+    function GetHandle: THandle;
+    function GetPaletteCount: Integer;
+    function GetPixel(X, Y: Integer): DWORD;
+    function GetPBits: Pointer;
+    function GetPBitsReadOnly: Pointer;
+    function GetScanLine(Y: Integer): Pointer;
+    function GetScanLineReadOnly(Y: Integer): Pointer;
+    function GetTopPBits: Pointer;
+    function GetTopPBitsReadOnly: Pointer;
+    procedure SetBitCount(Value: Integer);
+    procedure SetImage(Value: TDIBSharedImage);
+    procedure SetNowPixelFormat(const Value: TDIBPixelFormat);
+    procedure SetPixel(X, Y: Integer; Value: DWORD);
+    procedure StartProgress(const Name: string);
+    procedure EndProgress;
+    procedure UpdateProgress(PercentY: Integer);
+
+    {   Added these 3 functions for New Specials Effects   }
+    function Interval(iMin, iMax, iValue: Integer; iMark: boolean): Integer;
+    function IntToByte(i:Integer):Byte;
+    function TrimInt(i,Min,Max: Integer): Integer;
+    {   End of 3 functions for New Special Effect   }
+
+  protected
+    procedure DefineProperties(Filer: TFiler); override;
+    procedure Draw(ACanvas: TCanvas; const Rect: TRect); override;
+    function GetEmpty: Boolean; override;
+    function GetHeight: Integer; override;
+    function GetPalette: HPalette; override;
+    function GetWidth: Integer; override;
+    procedure ReadData(Stream: TStream); override;
+    procedure SetHeight(Value: Integer); override;
+    procedure SetPalette(Value: HPalette); override;
+    procedure SetWidth(Value: Integer); override;
+    procedure WriteData(Stream: TStream); override;
+  public
+    ColorTable: TRGBQuads;
+    PixelFormat: TDIBPixelFormat;
+    constructor Create; override;
+    destructor Destroy; override;
+    procedure Assign(Source: TPersistent); override;
+    procedure Clear;
+    procedure Compress;
+    procedure Decompress;
+    procedure FreeHandle;
+    procedure LoadFromClipboardFormat(AFormat: Word; AData: THandle;
+      APalette: HPALETTE); override;
+    procedure LoadFromStream(Stream: TStream); override;
+    procedure SaveToClipboardFormat(var AFormat: Word; var AData: THandle;
+      var APalette: HPALETTE); override;
+    procedure SaveToStream(Stream: TStream); override;
+    procedure SetSize(AWidth, AHeight, ABitCount: Integer);
+    procedure UpdatePalette;
+    {  Special effect  }
+    procedure Blur(ABitCount: Integer; Radius: Integer);
+    procedure Greyscale(ABitCount: Integer);
+    procedure Mirror(MirrorX, MirrorY: Boolean);
+    procedure Negative;
+
+    {   Added New Special Effect   }
+    procedure Spray(Amount: integer);
+    procedure Emboss;
+    procedure AddMonoNoise(Amount: integer);
+    procedure AddGradiantNoise(Amount: byte);
+    function  Twist(bmp: TDIB; Amount: byte): boolean;
+    Function  FishEye(bmp: TDIB): boolean;
+    Function  SmoothRotateWrap(Bmp: TDIB; cx,cy:Integer; Degree:Extended): boolean;
+    procedure Lightness(Amount: integer);
+    procedure Saturation(Amount: integer);
+    procedure Contrast(Amount: integer);
+    procedure AddRGB(ra,ga,ba: byte);
+    Function  Filter(Dest: TDIB; Filter: TFilter): boolean;
+    procedure Sharpen(Amount: Integer);
+    function  IntToColor(i: Integer): TBGR;
+    function  Rotate(Dst: TDIB;cx,cy:Integer;Angle:Double): boolean;
+    procedure SplitBlur(Amount:Integer);
+    procedure GaussianBlur(Bmp: TDIB;Amount: Integer);
+    {   End of New Special Effect   }
+
+    property BitCount: Integer read FBitCount write SetBitCount;
+    property BitmapInfo: PBitmapInfo read GetBitmapInfo;
+    property BitmapInfoSize: Integer read GetBitmapInfoSize;
+    property Canvas: TCanvas read GetCanvas;
+    property Handle: THandle read GetHandle;
+    property Height: Integer read FHeight write SetHeight;
+    property NextLine: Integer read FNextLine;
+    property NowPixelFormat: TDIBPixelFormat read FNowPixelFormat write SetNowPixelFormat;
+    property PaletteCount: Integer read GetPaletteCount;
+    property PBits: Pointer read GetPBits;
+    property PBitsReadOnly: Pointer read GetPBitsReadOnly;
+    property Pixels[X, Y: Integer]: DWORD read GetPixel write SetPixel;
+    property ScanLine[Y: Integer]: Pointer read GetScanLine;
+    property ScanLineReadOnly[Y: Integer]: Pointer read GetScanLineReadOnly;
+    property Size: Integer read FSize;
+    property TopPBits: Pointer read GetTopPBits;
+    property TopPBitsReadOnly: Pointer read GetTopPBitsReadOnly;
+    property Width: Integer read FWidth write SetWidth;
+    property WidthBytes: Integer read FWidthBytes;
+  end;
+
+  TDIBitmap = class(TDIB) end;
+
+  {  TCustomDXDIB  }
+
+  TCustomDXDIB = class(TComponent)
+  private
+    FDIB: TDIB;
+    procedure SetDIB(Value: TDIB);
+  public
+    constructor Create(AOnwer: TComponent); override;
+    destructor Destroy; override;
+    property DIB: TDIB read FDIB write SetDIB;
+  end;
+
+  {  TDXDIB  }
+
+  TDXDIB = class(TCustomDXDIB)
+  published
+    property DIB;
+  end;
+
+  {  TCustomDXPaintBox  }
+
+  TCustomDXPaintBox = class(TGraphicControl)
+  private
+    FAutoStretch: Boolean;
+    FCenter: Boolean;
+    FDIB: TDIB;
+    FKeepAspect: Boolean;
+    FStretch: Boolean;
+    FViewWidth: Integer;
+    FViewHeight: Integer;
+    procedure SetAutoStretch(Value: Boolean);
+    procedure SetCenter(Value: Boolean);
+    procedure SetDIB(Value: TDIB);
+    procedure SetKeepAspect(Value: Boolean);
+    procedure SetStretch(Value: Boolean);
+    procedure SetViewWidth(Value: Integer);
+    procedure SetViewHeight(Value: Integer);
+  protected
+    function GetPalette: HPALETTE; override;
+  public
+    constructor Create(AOwner: TComponent); override;
+    destructor Destroy; override;
+    procedure Paint; override;
+    property AutoStretch: Boolean read FAutoStretch write SetAutoStretch;
+    property Canvas;
+    property Center: Boolean read FCenter write SetCenter;
+    property DIB: TDIB read FDIB write SetDIB;
+    property KeepAspect: Boolean read FKeepAspect write SetKeepAspect;
+    property Stretch: Boolean read FStretch write SetStretch;
+    property ViewWidth: Integer read FViewWidth write SetViewWidth;
+    property ViewHeight: Integer read FViewHeight write SetViewHeight;
+  end;
+
+  {  TDXPaintBox  }
+
+  TDXPaintBox = class(TCustomDXPaintBox)
+  published
+    {$IFDEF DelphiX_Spt4}property Anchors;{$ENDIF}
+    property AutoStretch;
+    property Center;
+    {$IFDEF DelphiX_Spt4}property Constraints;{$ENDIF}
+    property DIB;
+    property KeepAspect;
+    property Stretch;
+    property ViewWidth;
+    property ViewHeight;
+
+    property Align;
+    property DragCursor;
+    property DragMode;
+    property Enabled;
+    property ParentShowHint;
+    property PopupMenu;
+    property ShowHint;
+    property Visible;
+    property OnClick;
+    property OnDblClick;
+    property OnDragDrop;
+    property OnDragOver;
+    property OnEndDrag;
+    property OnMouseDown;
+    property OnMouseMove;
+    property OnMouseUp;
+    property OnStartDrag;
+  end;
+
+function MakeDIBPixelFormat(RBitCount, GBitCount, BBitCount: Integer): TDIBPixelFormat;
+function MakeDIBPixelFormatMask(RBitMask, GBitMask, BBitMask: Integer): TDIBPixelFormat;
+function pfRGB(const PixelFormat: TDIBPixelFormat; R, G, B: Byte): DWORD;
+procedure pfGetRGB(const PixelFormat: TDIBPixelFormat; Color: DWORD; var R, G, B: Byte);
+function pfGetRValue(const PixelFormat: TDIBPixelFormat; Color: DWORD): Byte;
+function pfGetGValue(const PixelFormat: TDIBPixelFormat; Color: DWORD): Byte;
+function pfGetBValue(const PixelFormat: TDIBPixelFormat; Color: DWORD): Byte;
+
+function GreyscaleColorTable: TRGBQuads;
+
+function RGBQuad(R, G, B: Byte): TRGBQuad;
+function PaletteEntryToRGBQuad(const Entry: TPaletteEntry): TRGBQuad;
+function PaletteEntriesToRGBQuads(const Entries: TPaletteEntries): TRGBQuads;
+function RGBQuadToPaletteEntry(const RGBQuad: TRGBQuad): TPaletteEntry;
+function RGBQuadsToPaletteEntries(const RGBQuads: TRGBQuads): TPaletteEntries;
+
+{   Added Constants for TFilter Type   }
+const
+  EdgeFilter: TFilter = ((-1,-1,-1),(-1,8,-1),(-1,-1,-1));
+  StrongOutlineFilter: TFilter = ((-100,0,0),(0,0,0),(0,0,100));
+  Enhance3DFilter: TFilter = ((-100,5,5),(5,5,5),(5,5,100));
+  LinearFilter: TFilter = ((-40,-40,-40),(-40,255,-40),(-40,-40,-40));
+  GranularFilter: TFilter = ((-20,5,20),(5,-10,5),(100,5,-100));
+  SharpFilter: TFilter = ((-2,-2,-2),(-2,20,-2),(-2,-2,-2));
+{   End of constants   }
+
+implementation
+
+uses DXConsts;
+
+function Max(B1, B2: Integer): Integer;
+begin
+  if B1>=B2 then Result := B1 else Result := B2;
+end;
+
+function MakeDIBPixelFormat(RBitCount, GBitCount, BBitCount: Integer): TDIBPixelFormat;
+begin
+  Result.RBitMask := ((1 shl RBitCount)-1) shl (GBitCount+BBitCount);
+  Result.GBitMask := ((1 shl GBitCount)-1) shl (BBitCount);
+  Result.BBitMask := (1 shl BBitCount)-1;
+  Result.RBitCount := RBitCount;
+  Result.GBitCount := GBitCount;
+  Result.BBitCount := BBitCount;
+  Result.RBitCount2 := 8-RBitCount;
+  Result.GBitCount2 := 8-GBitCount;
+  Result.BBitCount2 := 8-BBitCount;
+  Result.RShift := (GBitCount+BBitCount)-(8-RBitCount);
+  Result.GShift := BBitCount-(8-GBitCount);
+  Result.BShift := 8-BBitCount;
+end;
+
+function MakeDIBPixelFormatMask(RBitMask, GBitMask, BBitMask: Integer): TDIBPixelFormat;
+
+  function GetBitCount(b: Integer): Integer;
+  var
+    i: Integer;
+  begin
+    i := 0;
+    while (i<31) and (((1 shl i) and b)=0) do Inc(i);
+
+    Result := 0;
+    while ((1 shl i) and b)<>0 do
+    begin
+      Inc(i);
+      Inc(Result);
+    end;
+  end;
+
+begin
+  Result := MakeDIBPixelFormat(GetBitCount(RBitMask), GetBitCount(GBitMask),
+    GetBitCount(BBitMask));
+end;
+
+function pfRGB(const PixelFormat: TDIBPixelFormat; R, G, B: Byte): DWORD;
+begin
+  with PixelFormat do
+    Result := ((R shl RShift) and RBitMask) or ((G shl GShift) and GBitMask) or
+      ((B shr BShift) and BBitMask);
+end;
+
+procedure pfGetRGB(const PixelFormat: TDIBPixelFormat; Color: DWORD; var R, G, B: Byte);
+begin
+  with PixelFormat do
+  begin
+    R := (Color and RBitMask) shr RShift;
+    R := R or (R shr RBitCount2);
+    G := (Color and GBitMask) shr GShift;
+    G := G or (G shr GBitCount2);
+    B := (Color and BBitMask) shl BShift;
+    B := B or (B shr BBitCount2);
+  end;
+end;
+
+function pfGetRValue(const PixelFormat: TDIBPixelFormat; Color: DWORD): Byte;
+begin
+  with PixelFormat do
+  begin
+    Result := (Color and RBitMask) shr RShift;
+    Result := Result or (Result shr RBitCount2);
+  end;
+end;
+
+function pfGetGValue(const PixelFormat: TDIBPixelFormat; Color: DWORD): Byte;
+begin
+  with PixelFormat do
+  begin
+    Result := (Color and GBitMask) shr GShift;
+    Result := Result or (Result shr GBitCount2);
+  end;
+end;
+
+function pfGetBValue(const PixelFormat: TDIBPixelFormat; Color: DWORD): Byte;
+begin
+  with PixelFormat do
+  begin
+    Result := (Color and BBitMask) shl BShift;
+    Result := Result or (Result shr BBitCount2);
+  end;
+end;
+
+function GreyscaleColorTable: TRGBQuads;
+var
+  i: Integer;
+begin
+  for i:=0 to 255 do
+    with Result[i] do
+    begin
+      rgbRed := i;
+      rgbGreen := i;
+      rgbBlue := i;
+      rgbReserved := 0;
+    end;
+end;
+
+function RGBQuad(R, G, B: Byte): TRGBQuad;
+begin
+  with Result do
+  begin
+    rgbRed := R;
+    rgbGreen := G;
+    rgbBlue := B;
+    rgbReserved := 0;
+  end;
+end;
+
+function PaletteEntryToRGBQuad(const Entry: TPaletteEntry): TRGBQuad;
+begin
+  with Result do
+    with Entry do
+    begin
+      rgbRed := peRed;
+      rgbGreen := peGreen;
+      rgbBlue := peBlue;
+      rgbReserved := 0;
+    end;
+end;
+
+function PaletteEntriesToRGBQuads(const Entries: TPaletteEntries): TRGBQuads;
+var
+  i: Integer;
+begin
+  for i:=0 to 255 do
+    Result[i] := PaletteEntryToRGBQuad(Entries[i]);
+end;
+
+function RGBQuadToPaletteEntry(const RGBQuad: TRGBQuad): TPaletteEntry;
+begin
+  with Result do
+    with RGBQuad do
+    begin
+      peRed := rgbRed;
+      peGreen := rgbGreen;
+      peBlue := rgbBlue;
+      peFlags := 0;
+    end;
+end;
+
+function RGBQuadsToPaletteEntries(const RGBQuads: TRGBQuads): TPaletteEntries;
+var
+  i: Integer;
+begin
+  for i:=0 to 255 do
+    Result[i] := RGBQuadToPaletteEntry(RGBQuads[i]);
+end;
+
+{  TDIBSharedImage  }
+
+type
+  PLocalDIBPixelFormat = ^TLocalDIBPixelFormat;
+  TLocalDIBPixelFormat = packed record
+    RBitMask, GBitMask, BBitMask: DWORD;
+  end;
+
+  TPaletteItem = class(TCollectionItem)
+  private
+    ID: Integer;
+    Palette: HPalette;
+    RefCount: Integer;
+    ColorTable: TRGBQuads;
+    ColorTableCount: Integer;
+    destructor Destroy; override;
+    procedure AddRef;
+    procedure Release;
+  end;
+
+  TPaletteManager = class
+  private
+    FList: TCollection;
+    constructor Create;
+    destructor Destroy; override;
+    function CreatePalette(const ColorTable: TRGBQuads; ColorTableCount: Integer): HPalette;
+    procedure DeletePalette(var Palette: HPalette);
+  end;
+
+destructor TPaletteItem.Destroy;
+begin
+  DeleteObject(Palette);
+  inherited Destroy;
+end;
+
+procedure TPaletteItem.AddRef;
+begin
+  Inc(RefCount);
+end;
+
+procedure TPaletteItem.Release;
+begin
+  Dec(RefCount);
+  if RefCount<=0 then Free;
+end;
+
+constructor TPaletteManager.Create;
+begin
+  inherited Create;
+  FList := TCollection.Create(TPaletteItem);
+end;
+
+destructor TPaletteManager.Destroy;
+begin
+  FList.Free;
+  inherited Destroy;
+end;
+
+function TPaletteManager.CreatePalette(const ColorTable: TRGBQuads; ColorTableCount: Integer): HPalette;
+type
+  TMyLogPalette = record
+    palVersion: Word;
+    palNumEntries: Word;
+    palPalEntry: TPaletteEntries;
+  end;
+var
+  i, ID: Integer;
+  Item: TPaletteItem;
+  LogPalette: TMyLogPalette;
+begin
+  {  Hash key making  }
+  ID := ColorTableCount;
+  for i:=0 to ColorTableCount-1 do
+    with ColorTable[i] do
+    begin
+      Inc(ID, rgbRed);
+      Inc(ID, rgbGreen);
+      Inc(ID, rgbBlue);
+    end;
+
+  {  Does the same palette already exist?  }
+  for i:=0 to FList.Count-1 do
+  begin
+    Item := TPaletteItem(FList.Items[i]);
+    if (Item.ID=ID) and (Item.ColorTableCount=ColorTableCount) and
+      CompareMem(@Item.ColorTable, @ColorTable, ColorTableCount*SizeOf(TRGBQuad)) then
+    begin
+      Item.AddRef; Result := Item.Palette;
+      Exit;
+    end;
+  end;
+
+  {  New palette making  }
+  Item := TPaletteItem.Create(FList);
+  Item.ID := ID;
+  Move(ColorTable, Item.ColorTable, ColorTableCount*SizeOf(TRGBQuad));
+  Item.ColorTableCount := ColorTableCount;
+
+  with LogPalette do
+  begin
+    palVersion := $300;
+    palNumEntries := ColorTableCount;
+    palPalEntry := RGBQuadsToPaletteEntries(ColorTable);
+  end;
+
+  Item.Palette := Windows.CreatePalette(PLogPalette(@LogPalette)^);
+  Item.AddRef; Result := Item.Palette;
+end;
+
+procedure TPaletteManager.DeletePalette(var Palette: HPalette);
+var
+  i: Integer;
+  Item: TPaletteItem;
+begin
+  if Palette=0 then Exit;
+
+  for i:=0 to FList.Count-1 do
+  begin
+    Item := TPaletteItem(FList.Items[i]);
+    if (Item.Palette=Palette) then
+    begin
+      Palette := 0;
+      Item.Release;
+      Exit;
+    end;
+  end;
+end;
+
+var
+  FPaletteManager: TPaletteManager;
+
+function PaletteManager: TPaletteManager;
+begin
+  if FPaletteManager=nil then
+    FPaletteManager := TPaletteManager.Create;
+  Result := FPaletteManager;
+end;
+
+constructor TDIBSharedImage.Create;
+begin
+  inherited Create;
+  FMemoryImage := True;
+  SetColorTable(GreyscaleColorTable);
+  FColorTable := GreyscaleColorTable;
+  FPixelFormat := MakeDIBPixelFormat(8, 8, 8);
+end;
+
+procedure TDIBSharedImage.NewImage(AWidth, AHeight, ABitCount: Integer;
+  const PixelFormat: TDIBPixelFormat; const ColorTable: TRGBQuads; MemoryImage, Compressed: Boolean);
+var
+  InfoOfs: Integer;
+  UsePixelFormat: Boolean;
+begin
+  Create;
+
+  {  Pixel format check  }
+  case ABitCount of
+    1 : if not ((PixelFormat.RBitMask=$FF0000) and (PixelFormat.GBitMask=$00FF00) and (PixelFormat.BBitMask=$0000FF)) then
+            raise EInvalidGraphicOperation.Create(SInvalidDIBPixelFormat);
+    4 : if not ((PixelFormat.RBitMask=$FF0000) and (PixelFormat.GBitMask=$00FF00) and (PixelFormat.BBitMask=$0000FF)) then
+            raise EInvalidGraphicOperation.Create(SInvalidDIBPixelFormat);
+    8 : if not ((PixelFormat.RBitMask=$FF0000) and (PixelFormat.GBitMask=$00FF00) and (PixelFormat.BBitMask=$0000FF)) then
+            raise EInvalidGraphicOperation.Create(SInvalidDIBPixelFormat);
+    16: begin
+          if not (((PixelFormat.RBitMask=$7C00) and (PixelFormat.GBitMask=$03E0) and (PixelFormat.BBitMask=$001F)) or
+            ((PixelFormat.RBitMask=$F800) and (PixelFormat.GBitMask= $07E0) and (PixelFormat.BBitMask=$001F))) then
+            raise EInvalidGraphicOperation.Create(SInvalidDIBPixelFormat);
+        end;
+    24: begin
+          if not ((PixelFormat.RBitMask=$FF0000) and (PixelFormat.GBitMask=$00FF00) and (PixelFormat.BBitMask=$0000FF)) then
+            raise EInvalidGraphicOperation.Create(SInvalidDIBPixelFormat);
+        end;
+    32: begin
+          if not ((PixelFormat.RBitMask=$FF0000) and (PixelFormat.GBitMask=$00FF00) and (PixelFormat.BBitMask=$0000FF)) then
+            raise EInvalidGraphicOperation.Create(SInvalidDIBPixelFormat);
+        end;
+  else
+    raise EInvalidGraphicOperation.CreateFmt(SInvalidDIBBitCount, [ABitCount]);
+  end;
+
+  FBitCount := ABitCount;
+  FHeight := AHeight;
+  FWidth := AWidth;
+  FWidthBytes := (((AWidth*ABitCount)+31) shr 5) * 4;
+  FNextLine := -FWidthBytes;
+  FSize := FWidthBytes*FHeight;
+  UsePixelFormat := ABitCount in [16, 32];
+
+  FPixelFormat := PixelFormat;
+
+  FPaletteCount := 0;
+  if FBitCount<=8 then
+    FPaletteCount := 1 shl FBitCount;
+
+  FBitmapInfoSize := SizeOf(TBitmapInfoHeader);
+  if UsePixelFormat then
+    Inc(FBitmapInfoSize, SizeOf(TLocalDIBPixelFormat));
+  Inc(FBitmapInfoSize, SizeOf(TRGBQuad)*FPaletteCount);
+
+  GetMem(FBitmapInfo, FBitmapInfoSize);
+  FillChar(FBitmapInfo^, FBitmapInfoSize, 0);
+
+  {  BitmapInfo setting.  }
+  with FBitmapInfo^.bmiHeader do
+  begin
+    biSize := SizeOf(TBitmapInfoHeader);
+    biWidth := FWidth;
+    biHeight := FHeight;
+    biPlanes := 1;
+    biBitCount := FBitCount;
+    if UsePixelFormat then
+      biCompression := BI_BITFIELDS
+    else
+    begin
+      if (FBitCount=4) and (Compressed) then
+        biCompression := BI_RLE4
+      else if (FBitCount=8) and (Compressed) then
+        biCompression := BI_RLE8
+      else
+        biCompression := BI_RGB;
+    end;
+    biSizeImage := FSize;
+    biXPelsPerMeter := 0;
+    biYPelsPerMeter := 0;
+    biClrUsed := 0;
+    biClrImportant := 0;
+  end;
+  InfoOfs := SizeOf(TBitmapInfoHeader);
+
+  if UsePixelFormat then
+  begin
+    with PLocalDIBPixelFormat(Integer(FBitmapInfo)+InfoOfs)^ do
+    begin
+      RBitMask := PixelFormat.RBitMask;
+      GBitMask := PixelFormat.GBitMask;
+      BBitMask := PixelFormat.BBitMask;
+    end;
+
+    Inc(InfoOfs, SizeOf(TLocalDIBPixelFormat));
+  end;
+
+  FColorTablePos := InfoOfs;
+
+  FColorTable := ColorTable;
+  Move(FColorTable, Pointer(Integer(FBitmapInfo)+FColorTablePos)^, SizeOf(TRGBQuad)*FPaletteCount);
+
+  FCompressed := FBitmapInfo^.bmiHeader.biCompression in [BI_RLE4, BI_RLE8];
+  FMemoryImage := MemoryImage or FCompressed;
+
+  {  DIB making.  }
+  if not Compressed then
+  begin
+    if MemoryImage then
+    begin
+      FPBits := Pointer(GlobalAlloc(GMEM_FIXED, FSize));
+      if FPBits=nil then
+        OutOfMemoryError;
+    end else
+    begin
+      FDC := CreateCompatibleDC(0);
+
+      FHandle := CreateDIBSection(FDC, FBitmapInfo^, DIB_RGB_COLORS, FPBits, 0, 0);
+      if FHandle=0 then
+        raise EOutOfResources.CreateFmt(SCannotMade, ['DIB']);
+
+      FOldHandle := SelectObject(FDC, FHandle);
+    end;
+  end;
+
+  FTopPBits := Pointer(Integer(FPBits)+(FHeight-1)*FWidthBytes);
+end;
+
+procedure TDIBSharedImage.Duplicate(Source: TDIBSharedImage; MemoryImage: Boolean);
+begin
+  if Source.FSize=0 then
+  begin
+    Create;
+    FMemoryImage := MemoryImage;
+  end else
+  begin
+    NewImage(Source.FWidth, Source.FHeight, Source.FBitCount,
+      Source.FPixelFormat, Source.FColorTable, MemoryImage, Source.FCompressed);
+    if FCompressed then
+    begin
+      FBitmapInfo.bmiHeader.biSizeImage := Source.FBitmapInfo.bmiHeader.biSizeImage;
+      GetMem(FPBits, FBitmapInfo.bmiHeader.biSizeImage);
+      Move(Source.FPBits^, FPBits^, FBitmapInfo.bmiHeader.biSizeImage);
+    end else
+    begin
+      Move(Source.FPBits^, FPBits^, FBitmapInfo.bmiHeader.biSizeImage);
+    end;
+  end;
+end;
+
+procedure TDIBSharedImage.Compress(Source: TDIBSharedImage);
+
+  procedure EncodeRLE4;
+  var
+    Size: Integer;
+
+    function AllocByte: PByte;
+    begin
+      if Size mod 4096=0 then
+        ReAllocMem(FPBits, Size+4095);
+      Result := Pointer(Integer(FPBits)+Size);
+      Inc(Size);
+    end;
+
+  var
+    B1, B2, C: Byte;
+    PB1, PB2: Integer;
+    Src: PByte;
+    X, Y: Integer;
+
+    function GetPixel(x: Integer): Integer;
+    begin
+      if X and 1=0 then
+        Result := PArrayByte(Src)[X shr 1] shr 4
+      else
+        Result := PArrayByte(Src)[X shr 1] and $0F;
+    end;
+
+  begin
+    Size := 0;
+
+    for y:=0 to Source.FHeight-1 do
+    begin
+      x := 0;
+      Src := Pointer(Integer(Source.FPBits)+y*FWidthBytes);
+      while x<Source.FWidth do
+      begin
+        if (Source.FWidth-x>3) and (GetPixel(x)=GetPixel(x+2)) then
+        begin
+          {  Encoding mode  }
+          B1 := 2;
+          B2 := (GetPixel(x) shl 4) or GetPixel(x+1);
+
+          Inc(x, 2);
+
+          C := B2;
+
+          while (x<Source.FWidth) and (C and $F=GetPixel(x)) and (B1<255) do
+          begin
+            Inc(B1);
+            Inc(x);
+            C := (C shr 4) or (C shl 4);
+          end;
+
+          AllocByte^ := B1;
+          AllocByte^ := B2;
+        end else
+        if (Source.FWidth-x>5) and ((GetPixel(x)<>GetPixel(x+2)) or (GetPixel(x+1)<>GetPixel(x+3))) and
+          ((GetPixel(x+2)=GetPixel(x+4)) and (GetPixel(x+3)=GetPixel(x+5))) then
+        begin
+          {  Encoding mode }
+          AllocByte^ := 2;
+          AllocByte^ := (GetPixel(x) shl 4) or GetPixel(x+1);
+          Inc(x, 2);
+        end else
+        begin
+          if (Source.FWidth-x<4) then
+          begin
+            {  Encoding mode }
+            while Source.FWidth-x>=2 do
+            begin
+              AllocByte^ := 2;
+              AllocByte^ := (GetPixel(x) shl 4) or GetPixel(x+1);
+              Inc(x, 2);
+            end;
+
+            if Source.FWidth-x=1 then
+            begin
+              AllocByte^ := 1;
+              AllocByte^ := GetPixel(x) shl 4;
+              Inc(x);
+            end;
+          end else
+          begin
+            {  Absolute mode  }
+            PB1 := Size; AllocByte;
+            PB2 := Size; AllocByte;
+
+            B1 := 0;
+            B2 := 4;
+
+            AllocByte^ := (GetPixel(x) shl 4) or GetPixel(x+1);
+            AllocByte^ := (GetPixel(x+2) shl 4) or GetPixel(x+3);
+
+            Inc(x, 4);
+
+            while (x+1<Source.FWidth) and (B2<254) do
+            begin
+              if (Source.FWidth-x>3) and (GetPixel(x)=GetPixel(x+2)) and (GetPixel(x+1)=GetPixel(x+3)) then
+                Break;
+
+              AllocByte^ := (GetPixel(x) shl 4) or GetPixel(x+1);
+              Inc(B2, 2);
+              Inc(x, 2);
+            end;
+
+            PByte(Integer(FPBits)+PB1)^ := B1;
+            PByte(Integer(FPBits)+PB2)^ := B2;
+          end;
+        end;
+
+        if Size and 1=1 then AllocByte;
+      end;
+
+      {  End of line  }
+      AllocByte^ := 0;
+      AllocByte^ := 0;
+    end;
+
+    {  End of bitmap  }
+    AllocByte^ := 0;
+    AllocByte^ := 1;
+
+    FBitmapInfo.bmiHeader.biSizeImage := Size;
+    FSize := Size;
+  end;
+
+  procedure EncodeRLE8;
+  var
+    Size: Integer;
+
+    function AllocByte: PByte;
+    begin
+      if Size mod 4096=0 then
+        ReAllocMem(FPBits, Size+4095);
+      Result := Pointer(Integer(FPBits)+Size);
+      Inc(Size);
+    end;
+
+  var
+    B1, B2: Byte;
+    PB1, PB2: Integer;
+    Src: PByte;
+    X, Y: Integer;
+  begin
+    Size := 0;
+
+    for y:=0 to Source.FHeight-1 do
+    begin
+      x := 0;
+      Src := Pointer(Integer(Source.FPBits)+y*FWidthBytes);
+      while x<Source.FWidth do
+      begin
+        if (Source.FWidth-x>2) and (Src^=PByte(Integer(Src)+1)^) then
+        begin
+          {  Encoding mode  }
+          B1 := 2;
+          B2 := Src^;
+
+          Inc(x, 2);
+          Inc(Src, 2);
+
+          while (x<Source.FWidth) and (Src^=B2) and (B1<255) do
+          begin
+            Inc(B1);
+            Inc(x);
+            Inc(Src);
+          end;
+
+          AllocByte^ := B1;
+          AllocByte^ := B2;
+        end else
+        if (Source.FWidth-x>2) and (Src^<>PByte(Integer(Src)+1)^) and (PByte(Integer(Src)+1)^=PByte(Integer(Src)+2)^) then
+        begin
+          {  Encoding mode }
+          AllocByte^ := 1;
+          AllocByte^ := Src^; Inc(Src);
+          Inc(x);
+        end else
+        begin
+          if (Source.FWidth-x<4) then
+          begin
+            {  Encoding mode }
+            if Source.FWidth-x=2 then
+            begin
+              AllocByte^ := 1;
+              AllocByte^ := Src^; Inc(Src);
+
+              AllocByte^ := 1;
+              AllocByte^ := Src^; Inc(Src);
+              Inc(x, 2);
+            end else
+            begin
+              AllocByte^ := 1;
+              AllocByte^ := Src^; Inc(Src);
+              Inc(x);
+            end;
+          end else
+          begin
+            {  Absolute mode  }
+            PB1 := Size; AllocByte;
+            PB2 := Size; AllocByte;
+
+            B1 := 0;
+            B2 := 3;
+
+            Inc(x, 3);
+
+            AllocByte^ := Src^; Inc(Src);
+            AllocByte^ := Src^; Inc(Src);
+            AllocByte^ := Src^; Inc(Src);
+
+            while (x<Source.FWidth) and (B2<255) do
+            begin
+              if (Source.FWidth-x>3) and (Src^=PByte(Integer(Src)+1)^) and (Src^=PByte(Integer(Src)+2)^) and (Src^=PByte(Integer(Src)+3)^) then
+                Break;
+
+              AllocByte^ := Src^; Inc(Src);
+              Inc(B2);
+              Inc(x);
+            end;
+
+            PByte(Integer(FPBits)+PB1)^ := B1;
+            PByte(Integer(FPBits)+PB2)^ := B2;
+          end;
+        end;
+
+        if Size and 1=1 then AllocByte;
+      end;
+
+      {  End of line  }
+      AllocByte^ := 0;
+      AllocByte^ := 0;
+    end;
+
+    {  End of bitmap  }
+    AllocByte^ := 0;
+    AllocByte^ := 1;
+
+    FBitmapInfo.bmiHeader.biSizeImage := Size;
+    FSize := Size;
+  end;
+
+begin
+  if Source.FCompressed then
+    Duplicate(Source, Source.FMemoryImage)
+  else begin
+    NewImage(Source.FWidth, Source.FHeight, Source.FBitCount,
+      Source.FPixelFormat, Source.FColorTable, True, True);
+    case FBitmapInfo.bmiHeader.biCompression of
+      BI_RLE4: EncodeRLE4;
+      BI_RLE8: EncodeRLE8;
+    else
+      Duplicate(Source, Source.FMemoryImage);
+    end;
+  end;
+end;
+
+procedure TDIBSharedImage.Decompress(Source: TDIBSharedImage; MemoryImage: Boolean);
+
+  procedure DecodeRLE4;
+  var
+    B1, B2, C: Byte;
+    Dest, Src, P: PByte;
+    X, Y, i: Integer;
+  begin
+    Src := Source.FPBits;
+    X := 0;
+    Y := 0;
+
+    while True do
+    begin
+      B1 := Src^; Inc(Src);
+      B2 := Src^; Inc(Src);
+
+      if B1=0 then
+      begin
+        case B2 of
+          0: begin  {  End of line  }
+               X := 0;
+               Inc(Y);
+             end;
+          1: Break; {  End of bitmap  }
+          2: begin  {  Difference of coordinates  }
+               Inc(X, B1);
+               Inc(Y, B2); Inc(Src, 2);
+             end;
+        else
+          {  Absolute mode  }
+          Dest := Pointer(Longint(FPBits)+Y*FWidthBytes);
+
+          C := 0;
+          for i:=0 to B2-1 do
+          begin
+            if i and 1=0 then
+            begin
+              C := Src^; Inc(Src);
+            end else
+            begin
+              C := C shl 4;
+            end;
+
+            P := Pointer(Integer(Dest)+X shr 1);
+            if X and 1=0 then
+              P^ := (P^ and $0F) or (C and $F0)
+            else
+              P^ := (P^ and $F0) or ((C and $F0) shr 4);
+
+            Inc(X);
+          end;
+        end;
+      end else
+      begin
+        {  Encoding mode  }
+        Dest := Pointer(Longint(FPBits)+Y*FWidthBytes);
+
+        for i:=0 to B1-1 do
+        begin
+          P := Pointer(Integer(Dest)+X shr 1);
+          if X and 1=0 then
+            P^ := (P^ and $0F) or (B2 and $F0)
+          else
+            P^ := (P^ and $F0) or ((B2 and $F0) shr 4);
+
+          Inc(X);
+
+          // Swap nibble
+          B2 := (B2 shr 4) or (B2 shl 4);
+        end;
+      end;
+
+      {  Word arrangement  }
+      Inc(Src, Longint(Src) and 1);
+    end;
+  end;
+
+  procedure DecodeRLE8;
+  var
+    B1, B2: Byte;
+    Dest, Src: PByte;
+    X, Y: Integer;
+  begin
+    Dest := FPBits;
+    Src := Source.FPBits;
+    X := 0;
+    Y := 0;
+
+    while True do
+    begin
+      B1 := Src^; Inc(Src);
+      B2 := Src^; Inc(Src);
+
+      if B1=0 then
+      begin
+        case B2 of
+          0: begin  {  End of line  }
+               X := 0; Inc(Y);
+               Dest := Pointer(Longint(FPBits)+Y*FWidthBytes+X);
+             end;
+          1: Break; {  End of bitmap  }
+          2: begin  {  Difference of coordinates  }
+               Inc(X, B1); Inc(Y, B2); Inc(Src, 2);
+               Dest := Pointer(Longint(FPBits)+Y*FWidthBytes+X);
+             end;
+        else
+          {  Absolute mode  }
+          Move(Src^, Dest^, B2); Inc(Dest, B2); Inc(Src, B2);
+        end;
+      end else
+      begin
+        {  Encoding mode  }
+        FillChar(Dest^, B1, B2); Inc(Dest, B1);
+      end;
+
+      {  Word arrangement  }
+      Inc(Src, Longint(Src) and 1);
+    end;
+  end;
+
+begin
+  if not Source.FCompressed then
+    Duplicate(Source, MemoryImage)
+  else begin
+    NewImage(Source.FWidth, Source.FHeight, Source.FBitCount,
+      Source.FPixelFormat, Source.FColorTable, MemoryImage, False);
+    case Source.FBitmapInfo.bmiHeader.biCompression of
+      BI_RLE4: DecodeRLE4;
+      BI_RLE8: DecodeRLE8;
+    else
+      Duplicate(Source, MemoryImage);
+    end;                                               
+  end;
+end;
+
+procedure TDIBSharedImage.ReadData(Stream: TStream; MemoryImage: Boolean);
+var
+  BI: TBitmapInfoHeader;
+  BC: TBitmapCoreHeader;
+  BCRGB: array[0..255] of TRGBTriple;
+
+  procedure LoadRLE4;
+  begin
+    FSize := BI.biSizeImage;
+    GetMem(FPBits, FSize);
+    FBitmapInfo.bmiHeader.biSizeImage := FSize;
+    Stream.ReadBuffer(FPBits^, FSize);
+  end;
+
+  procedure LoadRLE8;
+  begin
+    FSize := BI.biSizeImage;
+    GetMem(FPBits, FSize);
+    FBitmapInfo.bmiHeader.biSizeImage := FSize;
+    Stream.ReadBuffer(FPBits^, FSize);
+  end;
+
+  procedure LoadRGB;
+  var
+    y: Integer;
+  begin
+    if BI.biHeight<0 then
+    begin
+      for y:=0 to Abs(BI.biHeight)-1 do
+        Stream.ReadBuffer(Pointer(Integer(FTopPBits)+y*FNextLine)^, FWidthBytes);
+    end else
+    begin
+      Stream.ReadBuffer(FPBits^, FSize);
+    end;
+  end;
+
+var
+  i, PalCount: Integer;
+  OS2: Boolean;
+  Localpf: TLocalDIBPixelFormat;
+  AColorTable: TRGBQuads;
+  APixelFormat: TDIBPixelFormat;
+begin
+  {  Header size reading  }
+  i := Stream.Read(BI.biSize, 4);
+
+  if i=0 then
+  begin
+    Create;
+    Exit;
+  end;
+  if i<>4 then
+    raise EInvalidGraphic.Create(SInvalidDIB);
+
+  {  Kind check of DIB  }
+  OS2 := False;
+
+  case BI.biSize of
+    SizeOf(TBitmapCoreHeader):
+      begin
+        {  OS/2 type  }
+        Stream.ReadBuffer(Pointer(Integer(@BC)+4)^, SizeOf(TBitmapCoreHeader)-4);
+
+        with BI do
+        begin
+          biClrUsed := 0;
+          biCompression := BI_RGB;
+          biBitCount := BC.bcBitCount;
+          biHeight := BC.bcHeight;
+          biWidth := BC.bcWidth;
+        end;
+
+        OS2 := True;
+      end;
+    SizeOf(TBitmapInfoHeader):
+      begin
+        {  Windows type  }
+        Stream.ReadBuffer(Pointer(Integer(@BI)+4)^, SizeOf(TBitmapInfoHeader)-4);
+      end;
+  else
+    raise EInvalidGraphic.Create(SInvalidDIB);
+  end;
+
+  {  Bit mask reading.  }
+  if BI.biCompression = BI_BITFIELDS then
+  begin
+    Stream.ReadBuffer(Localpf, SizeOf(Localpf));
+    with Localpf do
+      APixelFormat := MakeDIBPixelFormatMask(RBitMask, GBitMask, BBitMask);
+  end else
+  begin
+    if BI.biBitCount=16 then
+      APixelFormat := MakeDIBPixelFormat(5, 5, 5)
+    else if BI.biBitCount=32 then
+      APixelFormat := MakeDIBPixelFormat(8, 8, 8)
+    else
+      APixelFormat := MakeDIBPixelFormat(8, 8, 8);
+  end;
+
+    {  Palette reading  }
+  PalCount := BI.biClrUsed;
+  if (PalCount=0) and (BI.biBitCount<=8) then
+    PalCount := 1 shl BI.biBitCount;
+  if PalCount>256 then PalCount := 256;
+
+  FillChar(AColorTable, SizeOf(AColorTable), 0);
+
+  if OS2 then
+  begin
+    {  OS/2 type  }
+    Stream.ReadBuffer(BCRGB, SizeOf(TRGBTriple)*PalCount);
+    for i:=0 to PalCount-1 do
+    begin
+      with BCRGB[i] do
+        AColorTable[i] := RGBQuad(rgbtRed, rgbtGreen, rgbtBlue);
+    end;
+  end else
+  begin
+    {  Windows type  }
+    Stream.ReadBuffer(AColorTable, SizeOf(TRGBQuad)*PalCount);
+  end;
+
+  {  DIB çÏê¨  }
+  NewImage(BI.biWidth, Abs(BI.biHeight), BI.biBitCount, APixelFormat, AColorTable,
+    MemoryImage, BI.biCompression in [BI_RLE4, BI_RLE8]);
+
+  {  Pixel data reading  }
+  case BI.biCompression of
+    BI_RGB      : LoadRGB;
+    BI_RLE4     : LoadRLE4;
+    BI_RLE8     : LoadRLE8;
+    BI_BITFIELDS: LoadRGB;
+  else
+    raise EInvalidGraphic.Create(SInvalidDIB);
+  end;
+end;
+
+destructor TDIBSharedImage.Destroy;
+begin
+  if FHandle<>0 then
+  begin
+    if FOldHandle<>0 then SelectObject(FDC, FOldHandle);
+    DeleteObject(FHandle);
+  end else
+    GlobalFree(THandle(FPBits));
+            
+  PaletteManager.DeletePalette(FPalette);
+  if FDC<>0 then DeleteDC(FDC);
+
+  FreeMem(FBitmapInfo);
+  inherited Destroy;
+end;
+
+procedure TDIBSharedImage.FreeHandle;
+begin
+end;
+
+function TDIBSharedImage.GetPalette: THandle;
+begin
+  if FPaletteCount>0 then
+  begin
+    if FChangePalette then
+    begin
+      FChangePalette := False;
+      PaletteManager.DeletePalette(FPalette);
+      FPalette := PaletteManager.CreatePalette(FColorTable, FPaletteCount);
+    end;
+    Result := FPalette;
+  end else
+    Result := 0;
+end;
+
+procedure TDIBSharedImage.SetColorTable(const Value: TRGBQuads);
+begin
+  FColorTable := Value;
+  FChangePalette := True;
+
+  if (FSize>0) and (FPaletteCount>0) then
+  begin
+    SetDIBColorTable(FDC, 0, 256, FColorTable);
+    Move(FColorTable, Pointer(Integer(FBitmapInfo)+FColorTablePos)^, SizeOf(TRGBQuad)*FPaletteCount);
+  end;
+end;
+
+{ TDIB }
+
+var
+  FEmptyDIBImage: TDIBSharedImage;
+
+function EmptyDIBImage: TDIBSharedImage;
+begin
+  if FEmptyDIBImage=nil then
+  begin
+    FEmptyDIBImage := TDIBSharedImage.Create;
+    FEmptyDIBImage.Reference;
+  end;
+  Result := FEmptyDIBImage;
+end;
+
+constructor TDIB.Create;
+begin
+  inherited Create;
+  SetImage(EmptyDIBImage);
+end;
+
+destructor TDIB.Destroy;
+begin
+  SetImage(EmptyDIBImage);
+  FCanvas.Free;
+  inherited Destroy;
+end;
+
+procedure TDIB.Assign(Source: TPersistent);
+
+  procedure AssignBitmap(Source: TBitmap);
+  var
+    Data: array[0..1023] of Byte;
+    BitmapRec: Windows.PBitmap;
+    DIBSectionRec: PDIBSection;
+    PaletteEntries: TPaletteEntries;
+  begin
+    GetPaletteEntries(Source.Palette, 0, 256, PaletteEntries);
+    ColorTable := PaletteEntriesToRGBQuads(PaletteEntries);
+    UpdatePalette;
+
+    case GetObject(Source.Handle, SizeOf(Data), @Data) of
+      SizeOf(Windows.TBitmap):
+          begin
+            BitmapRec := @Data;
+            case BitmapRec^.bmBitsPixel of
+              16: PixelFormat := MakeDIBPixelFormat(5, 5, 5);
+            else
+              PixelFormat := MakeDIBPixelFormat(8, 8, 8);
+            end;
+            SetSize(BitmapRec^.bmWidth, BitmapRec^.bmHeight, BitmapRec^.bmBitsPixel);
+          end;
+      SizeOf(TDIBSection):
+          begin
+            DIBSectionRec := @Data;
+            if DIBSectionRec^.dsBm.bmBitsPixel>=24 then
+            begin
+              PixelFormat := MakeDIBPixelFormat(8, 8, 8);
+            end else
+            if DIBSectionRec^.dsBm.bmBitsPixel>8 then
+            begin
+              PixelFormat := MakeDIBPixelFormatMask(DIBSectionRec^.dsBitfields[0], //correct I.Ceneff, thanks
+                DIBSectionRec^.dsBitfields[1], DIBSectionRec^.dsBitfields[2]);
+            end else
+            begin
+              PixelFormat := MakeDIBPixelFormat(8, 8, 8);
+            end;
+            SetSize(DIBSectionRec^.dsBm.bmWidth, DIBSectionRec^.dsBm.bmHeight,
+              DIBSectionRec^.dsBm.bmBitsPixel);
+          end;
+    else
+      Exit;
+    end;
+
+    FillChar(PBits^, Size, 0);
+    Canvas.Draw(0, 0, Source);
+  end;
+
+  procedure AssignGraphic(Source: TGraphic);
+  begin
+    if Source is TBitmap then
+      AssignBitmap(TBitmap(Source))
+    else
+    begin
+      SetSize(Source.Width, Source.Height, 24);
+      FillChar(PBits^, Size, 0);
+      Canvas.Draw(0, 0, Source);
+    end;
+  end;
+
+begin
+  if Source=nil then
+  begin
+    Clear;
+  end else if Source is TDIB then
+  begin
+    if Source<>Self then
+      SetImage(TDIB(Source).FImage);
+  end else if Source is TGraphic then
+  begin
+    AssignGraphic(TGraphic(Source));
+  end else if Source is TPicture then
+  begin
+    if TPicture(Source).Graphic<>nil then
+      AssignGraphic(TPicture(Source).Graphic)
+    else
+      Clear;
+  end else
+    inherited Assign(Source);
+end;
+
+procedure TDIB.Draw(ACanvas: TCanvas; const Rect: TRect);
+var
+  OldPalette: HPalette;
+  OldMode: Integer;
+begin
+  if Size>0 then
+  begin
+    if PaletteCount>0 then
+    begin
+      OldPalette := SelectPalette(ACanvas.Handle, Palette, False);
+      RealizePalette(ACanvas.Handle);
+    end else
+      OldPalette := 0;
+    try
+      OldMode := SetStretchBltMode(ACanvas.Handle, COLORONCOLOR);
+      try
+        GdiFlush;
+        if FImage.FMemoryImage then
+        begin
+          with Rect do
+            StretchDIBits(ACanvas.Handle, Left, Top, Right - Left, Bottom - Top,
+              0, 0, Width, Height, FImage.FPBits, FImage.FBitmapInfo^, DIB_RGB_COLORS , ACanvas.CopyMode);
+        end else
+        begin
+          with Rect do
+            StretchBlt(ACanvas.Handle, Left, Top, Right - Left, Bottom - Top,
+              FImage.FDC, 0, 0, Width, Height, ACanvas.CopyMode);
+        end;
+      finally
+        SetStretchBltMode(ACanvas.Handle, OldMode);
+      end;
+    finally
+      SelectPalette(ACanvas.Handle, OldPalette, False);
+    end;
+  end;
+end;
+
+procedure TDIB.Clear;
+begin
+  SetImage(EmptyDIBImage);
+end;
+
+procedure TDIB.CanvasChanging(Sender: TObject);
+begin
+  Changing(False);
+end;
+
+procedure TDIB.Changing(MemoryImage: Boolean);
+var
+  TempImage: TDIBSharedImage;
+begin
+  if (FImage.RefCount>1) or (FImage.FCompressed) or ((not MemoryImage) and (FImage.FMemoryImage)) then
+  begin
+    TempImage := TDIBSharedImage.Create;
+    try
+      TempImage.Decompress(FImage, FImage.FMemoryImage and MemoryImage);
+    except
+      TempImage.Free;
+      raise;
+    end;
+    SetImage(TempImage);
+  end;
+end;
+
+procedure TDIB.AllocHandle;
+var
+  TempImage: TDIBSharedImage;
+begin
+  if FImage.FMemoryImage then
+  begin
+    TempImage := TDIBSharedImage.Create;
+    try
+      TempImage.Decompress(FImage, False);
+    except
+      TempImage.Free;
+      raise;
+    end;
+    SetImage(TempImage);
+  end;
+end;
+
+procedure TDIB.Compress;
+var
+  TempImage: TDIBSharedImage;
+begin
+  if (not FImage.FCompressed) and (BitCount in [4, 8]) then
+  begin
+    TempImage := TDIBSharedImage.Create;
+    try
+      TempImage.Compress(FImage);
+    except
+      TempImage.Free;
+      raise;
+    end;
+    SetImage(TempImage);
+  end;
+end;
+
+procedure TDIB.Decompress;
+var
+  TempImage: TDIBSharedImage;
+begin
+  if FImage.FCompressed then
+  begin
+    TempImage := TDIBSharedImage.Create;
+    try
+      TempImage.Decompress(FImage, FImage.FMemoryImage);
+    except
+      TempImage.Free;
+      raise;
+    end;
+    SetImage(TempImage);
+  end;
+end;
+
+procedure TDIB.FreeHandle;
+var
+  TempImage: TDIBSharedImage;
+begin
+  if not FImage.FMemoryImage then
+  begin
+    TempImage := TDIBSharedImage.Create;
+    try
+      TempImage.Duplicate(FImage, True);
+    except
+      TempImage.Free;
+      raise;
+    end;
+    SetImage(TempImage);
+  end;
+end;
+
+function TDIB.GetBitmapInfo: PBitmapInfo;
+begin
+  Result := FImage.FBitmapInfo;
+end;
+
+function TDIB.GetBitmapInfoSize: Integer;
+begin
+  Result := FImage.FBitmapInfoSize;
+end;
+
+function TDIB.GetCanvas: TCanvas;
+begin
+  if (FCanvas=nil) or (FCanvas.Handle=0) then
+  begin
+    AllocHandle;
+
+    FCanvas := TCanvas.Create;
+    FCanvas.Handle := FImage.FDC;
+    FCanvas.OnChanging := CanvasChanging;
+  end;
+  Result := FCanvas;
+end;
+
+function TDIB.GetEmpty: Boolean;
+begin
+  Result := Size=0;
+end;
+
+function TDIB.GetHandle: THandle;
+begin
+  Changing(True);
+  Result := FImage.FHandle;
+end;
+
+function TDIB.GetHeight: Integer;
+begin
+  Result := FHeight;
+end;
+
+function TDIB.GetPalette: HPalette;
+begin
+  Result := FImage.GetPalette;
+end;
+
+function TDIB.GetPaletteCount: Integer;
+begin
+  Result := FImage.FPaletteCount;
+end;
+
+function TDIB.GetPBits: Pointer;
+begin
+  Changing(True);
+
+  if not FImage.FMemoryImage then
+    GDIFlush;
+  Result := FPBits;
+end;
+
+function TDIB.GetPBitsReadOnly: Pointer;
+begin
+  if not FImage.FMemoryImage then
+    GDIFlush;
+  Result := FPBits;
+end;
+
+function TDIB.GetScanLine(Y: Integer): Pointer;
+begin
+  Changing(True);
+  if (Y<0) or (Y>=FHeight) then
+    raise EInvalidGraphicOperation.CreateFmt(SScanline, [Y]);
+
+  if not FImage.FMemoryImage then
+    GDIFlush;
+  Result := Pointer(Integer(FTopPBits)+Y*FNextLine);
+end;
+
+function TDIB.GetScanLineReadOnly(Y: Integer): Pointer;
+begin
+  if (Y<0) or (Y>=FHeight) then
+    raise EInvalidGraphicOperation.CreateFmt(SScanline, [Y]);
+
+  if not FImage.FMemoryImage then
+    GDIFlush;
+  Result := Pointer(Integer(FTopPBits)+Y*FNextLine);
+end;
+
+function TDIB.GetTopPBits: Pointer;
+begin
+  Changing(True);
+
+  if not FImage.FMemoryImage then
+    GDIFlush;
+  Result := FTopPBits;
+end;
+
+function TDIB.GetTopPBitsReadOnly: Pointer;
+begin
+  if not FImage.FMemoryImage then
+    GDIFlush;
+  Result := FTopPBits;
+end;
+
+function TDIB.GetWidth: Integer;
+begin
+  Result := FWidth;
+end;
+
+const
+  Mask1: array[0..7] of DWORD = ($80, $40, $20, $10, $08, $04, $02, $01);
+  Mask1n: array[0..7] of DWORD = ($FFFFFF7F, $FFFFFFBF, $FFFFFFDF, $FFFFFFEF,
+    $FFFFFFF7, $FFFFFFFB, $FFFFFFFD, $FFFFFFFE);
+  Mask4: array[0..1] of DWORD = ($F0, $0F);
+  Mask4n: array[0..1] of DWORD = ($FFFFFF0F, $FFFFFFF0);
+
+  Shift1: array[0..7] of DWORD = (7, 6, 5, 4, 3, 2, 1, 0);
+  Shift4: array[0..1] of DWORD = (4, 0);
+
+function TDIB.GetPixel(X, Y: Integer): DWORD;
+begin
+  Decompress;
+
+  Result := 0;
+  if (X>=0) and (X<FWidth) and (Y>=0) and (Y<FHeight) then
+  begin
+    case FBitCount of
+      1 : Result := (PArrayByte(Integer(FTopPBits)+Y*FNextLine)[X shr 3] and Mask1[X and 7]) shr Shift1[X and 7];
+      4 : Result := ((PArrayByte(Integer(FTopPBits)+Y*FNextLine)[X shr 1] and Mask4[X and 1]) shr Shift4[X and 1]);
+      8 : Result := PArrayByte(Integer(FTopPBits)+Y*FNextLine)[X];
+      16: Result := PArrayWord(Integer(FTopPBits)+Y*FNextLine)[X];
+      24: with PArrayBGR(Integer(FTopPBits)+Y*FNextLine)[X] do
+            Result := R or (G shl 8) or (B shl 16);
+      32: Result := PArrayDWord(Integer(FTopPBits)+Y*FNextLine)[X];
+    end;
+  end;
+end;
+
+procedure TDIB.SetPixel(X, Y: Integer; Value: DWORD);
+var
+  P: PByte;
+begin
+  Changing(True);
+
+  if (X>=0) and (X<FWidth) and (Y>=0) and (Y<FHeight) then
+  begin
+    case FBitCount of
+      1 : begin
+            P := @PArrayByte(Integer(FTopPBits)+Y*FNextLine)[X shr 3];
+            P^ := (P^ and Mask1n[X and 7]) or ((Value and 1) shl Shift1[X and 7]);
+          end;
+      4 : begin
+            P := (@PArrayByte(Integer(FTopPBits)+Y*FNextLine)[X shr 3]);
+            P^ := ((P^ and Mask4n[X and 1]) or ((Value and 15) shl Shift4[X and 1]));
+          end;
+      8 : PArrayByte(Integer(FTopPBits)+Y*FNextLine)[X] := Value;
+      16: PArrayWord(Integer(FTopPBits)+Y*FNextLine)[X] := Value;
+      24: with PArrayBGR(Integer(FTopPBits)+Y*FNextLine)[X] do
+          begin
+            B := Byte(Value shr 16);
+            G := Byte(Value shr 8);
+            R := Byte(Value);
+          end;
+      32: PArrayDWord(Integer(FTopPBits)+Y*FNextLine)[X] := Value;
+    end;
+  end;
+end;
+
+procedure TDIB.DefineProperties(Filer: TFiler);
+begin
+  inherited DefineProperties(Filer);
+  {  For interchangeability with an old version.  }
+  Filer.DefineBinaryProperty('DIB', LoadFromStream, nil, False);
+end;
+
+type
+  TGlobalMemoryStream = class(TMemoryStream)
+  private
+    FHandle: THandle;
+  public
+    constructor Create(AHandle: THandle);
+    destructor Destroy; override;
+  end;
+
+constructor TGlobalMemoryStream.Create(AHandle: THandle);
+begin
+  inherited Create;
+  FHandle := AHandle;
+  SetPointer(GlobalLock(AHandle), GlobalSize(AHandle));
+end;
+
+destructor TGlobalMemoryStream.Destroy;
+begin
+  GlobalUnLock(FHandle);
+  SetPointer(nil, 0);
+  inherited Destroy;
+end;
+
+procedure TDIB.LoadFromClipboardFormat(AFormat: Word; AData: THandle;
+  APalette: HPALETTE);
+var
+  Stream: TGlobalMemoryStream;
+begin
+  Stream := TGlobalMemoryStream.Create(AData);
+  try
+    ReadData(Stream);
+  finally
+    Stream.Free;
+  end;
+end;
+
+const
+  BitmapFileType = Ord('B') + Ord('M')*$100;
+
+procedure TDIB.LoadFromStream(Stream: TStream);
+var
+  BF: TBitmapFileHeader;
+  i: Integer;
+begin
+  {  File header reading  }
+  i := Stream.Read(BF, SizeOf(TBitmapFileHeader));
+  if i=0 then Exit;
+  if i<>SizeOf(TBitmapFileHeader) then
+    raise EInvalidGraphic.Create(SInvalidDIB);
+
+  {  Is the head 'BM'?  }
+  if BF.bfType<>BitmapFileType then
+    raise EInvalidGraphic.Create(SInvalidDIB);
+
+  ReadData(Stream);
+end;
+
+procedure TDIB.ReadData(Stream: TStream);
+var
+  TempImage: TDIBSharedImage;
+begin
+  TempImage := TDIBSharedImage.Create;
+  try
+    TempImage.ReadData(Stream, FImage.FMemoryImage);
+  except
+    TempImage.Free;
+    raise;
+  end;
+  SetImage(TempImage);
+end;
+
+procedure TDIB.SaveToClipboardFormat(var AFormat: Word; var AData: THandle;
+  var APalette: HPALETTE);
+var
+  P: Pointer;
+  Stream: TMemoryStream;
+begin
+  AFormat := CF_DIB;
+  APalette := 0;
+
+  Stream := TMemoryStream.Create;
+  try
+    WriteData(Stream);
+
+    AData := GlobalAlloc(GHND, Stream.Size);
+    if AData=0 then OutOfMemoryError;
+
+    P := GlobalLock(AData);
+    Move(Stream.Memory^, P^, Stream.Size);
+    GlobalUnLock(AData);
+  finally
+    Stream.Free;
+  end;
+end;
+
+procedure TDIB.SaveToStream(Stream: TStream);
+var
+  BF: TBitmapFileHeader;
+begin
+  if Empty then Exit;
+
+  with BF do
+  begin
+    bfType    := BitmapFileType;
+    bfOffBits := SizeOf(TBitmapFileHeader)+BitmapInfoSize;
+    bfSize    := bfOffBits+FImage.FBitmapInfo^.bmiHeader.biSizeImage;
+    bfReserved1 := 0;
+    bfReserved2 := 0;
+  end;
+  Stream.WriteBuffer(BF, SizeOf(TBitmapFileHeader));
+
+  WriteData(Stream);
+end;
+
+procedure TDIB.WriteData(Stream: TStream);
+begin
+  if Empty then Exit;
+
+  if not FImage.FMemoryImage then
+    GDIFlush;
+
+  Stream.WriteBuffer(FImage.FBitmapInfo^, FImage.FBitmapInfoSize);
+  Stream.WriteBuffer(FImage.FPBits^, FImage.FBitmapInfo.bmiHeader.biSizeImage);
+end;
+
+procedure TDIB.SetBitCount(Value: Integer);
+begin
+  if Value<=0 then
+    Clear
+  else
+  begin
+    if Empty then
+    begin
+      SetSize(Max(Width, 1), Max(Height, 1), Value)
+    end else
+    begin
+      ConvertBitCount(Value);
+    end;
+  end;
+end;
+
+procedure TDIB.SetHeight(Value: Integer);
+begin
+  if Value<=0 then
+    Clear
+  else
+  begin
+    if Empty then
+      SetSize(Max(Width, 1), Value, 8)
+    else
+      SetSize(Width, Value, BitCount);
+  end;
+end;
+
+procedure TDIB.SetWidth(Value: Integer);
+begin
+  if Value<=0 then
+    Clear
+  else
+  begin
+    if Empty then
+      SetSize(Value, Max(Height, 1), 8)
+    else
+      SetSize(Value, Height, BitCount);
+  end;
+end;
+
+procedure TDIB.SetImage(Value: TDIBSharedImage);
+begin
+  if FImage<>Value then
+  begin
+    if FCanvas<>nil then
+      FCanvas.Handle := 0;
+
+    FImage.Release;
+    FImage := Value;
+    FImage.Reference;
+
+    if FCanvas<>nil then
+      FCanvas.Handle := FImage.FDC;
+
+    ColorTable := FImage.FColorTable;
+    PixelFormat := FImage.FPixelFormat;
+
+    FBitCount := FImage.FBitCount;
+    FHeight := FImage.FHeight;
+    FNextLine := FImage.FNextLine;
+    FNowPixelFormat := FImage.FPixelFormat;
+    FPBits := FImage.FPBits;
+    FSize := FImage.FSize;
+    FTopPBits := FImage.FTopPBits;
+    FWidth := FImage.FWidth;
+    FWidthBytes := FImage.FWidthBytes;
+  end;
+end;
+
+procedure TDIB.SetNowPixelFormat(const Value: TDIBPixelFormat);
+var
+  Temp: TDIB;
+begin
+  if CompareMem(@Value, @FImage.FPixelFormat, SizeOf(TDIBPixelFormat)) then exit;
+
+  PixelFormat := Value;
+
+  Temp := TDIB.Create;
+  try
+    Temp.Assign(Self);
+    SetSize(Width, Height, BitCount);
+    Canvas.Draw(0, 0, Temp);
+  finally
+    Temp.Free;
+  end;
+end;
+
+procedure TDIB.SetPalette(Value: HPalette);
+var
+  PaletteEntries: TPaletteEntries;
+begin
+  GetPaletteEntries(Value, 0, 256, PaletteEntries);
+  DeleteObject(Value);
+
+  ColorTable := PaletteEntriesToRGBQuads(PaletteEntries);
+  UpdatePalette;
+end;
+
+procedure TDIB.SetSize(AWidth, AHeight, ABitCount: Integer);
+var
+  TempImage: TDIBSharedImage;
+begin
+  if (AWidth=Width) and (AHeight=Height) and (ABitCount=BitCount) and
+    (NowPixelFormat.RBitMask=PixelFormat.RBitMask) and
+    (NowPixelFormat.GBitMask=PixelFormat.GBitMask) and
+    (NowPixelFormat.BBitMask=PixelFormat.BBitMask) then Exit;
+
+  if (AWidth<=0) or (AHeight<=0) then
+  begin
+    Clear;
+    Exit;
+  end;
+
+  TempImage := TDIBSharedImage.Create;
+  try
+    TempImage.NewImage(AWidth, AHeight, ABitCount,
+      PixelFormat, ColorTable, FImage.FMemoryImage, False);
+  except
+    TempImage.Free;
+    raise;
+  end;
+  SetImage(TempImage);
+
+  PaletteModified := True;
+end;
+
+procedure TDIB.UpdatePalette;
+var
+  Col: TRGBQuads;
+begin
+  if CompareMem(@ColorTable, @FImage.FColorTable, SizeOf(ColorTable)) then Exit;
+
+  Col := ColorTable;
+  Changing(True);
+  ColorTable := Col;
+  FImage.SetColorTable(ColorTable);
+
+  PaletteModified := True;
+end;
+
+procedure TDIB.ConvertBitCount(ABitCount: Integer);
+var
+  Temp: TDIB;
+
+  procedure CreateHalftonePalette(R, G, B: Integer);
+  var
+    i: Integer;
+  begin
+    for i:=0 to 255 do
+      with ColorTable[i] do
+      begin
+        rgbRed   := ((i shr (G+B-1)) and (1 shl R-1)) * 255 div (1 shl R-1);
+        rgbGreen := ((i shr (B-1)) and (1 shl G-1)) * 255 div (1 shl G-1);
+        rgbBlue  := ((i shr 0) and (1 shl B-1)) * 255 div (1 shl B-1);
+      end;
+  end;
+
+  procedure PaletteToPalette_Inc;
+  var
+    x, y: Integer;
+    i: DWORD;
+    SrcP, DestP: Pointer;
+    P: PByte;
+  begin
+    i := 0;
+
+    for y:=0 to Height-1 do
+    begin
+      SrcP := Temp.ScanLine[y];
+      DestP := ScanLine[y];
+
+      for x:=0 to Width-1 do
+      begin
+        case Temp.BitCount of
+          1 : begin
+                i := (PArrayByte(SrcP)[X shr 3] and Mask1[X and 7]) shr Shift1[X and 7];
+              end;
+          4 : begin
+                i := (PArrayByte(SrcP)[X and 1] and Mask4[X and 1]) shr Shift4[X and 1];
+              end;
+          8 : begin
+                i := PByte(SrcP)^;
+                Inc(PByte(SrcP));
+              end;
+        end;
+
+        case BitCount of
+          1 : begin
+                P := @PArrayByte(DestP)[X shr 3];
+                P^ := (P^ and Mask1n[X and 7]) or (i shl Shift1[X shr 3]);
+              end;
+          4 : begin
+                P := @PArrayByte(DestP)[X shr 1];
+                P^ := (P^ and Mask4n[X and 1]) or (i shl Shift4[X and 1]);
+              end;
+          8 : begin
+                PByte(DestP)^ := i;
+                Inc(PByte(DestP));
+              end;
+        end;
+      end;
+    end;
+  end;
+
+  procedure PaletteToRGB_or_RGBToRGB;
+  var
+    x, y: Integer;
+    SrcP, DestP: Pointer;
+    cR, cG, cB: Byte;
+  begin
+    cR := 0;
+    cG := 0;
+    cB := 0;
+
+    for y:=0 to Height-1 do
+    begin
+      SrcP := Temp.ScanLine[y];
+      DestP := ScanLine[y];
+
+      for x:=0 to Width-1 do
+      begin
+        case Temp.BitCount of
+          1 : begin
+                with Temp.ColorTable[(PArrayByte(SrcP)[X shr 3] and Mask1[X and 7]) shr Shift1[X and 7]] do
+                begin
+                  cR := rgbRed;
+                  cG := rgbGreen;
+                  cB := rgbBlue;
+                end;
+              end;
+          4 : begin
+                with Temp.ColorTable[(PArrayByte(SrcP)[X shr 1] and Mask4[X and 1]) shr Shift4[X and 1]] do
+                begin
+                  cR := rgbRed;
+                  cG := rgbGreen;
+                  cB := rgbBlue;
+                end;
+              end;
+          8 : begin
+                with Temp.ColorTable[PByte(SrcP)^] do
+                begin
+                  cR := rgbRed;
+                  cG := rgbGreen;
+                  cB := rgbBlue;
+                end;
+                Inc(PByte(SrcP));
+              end;
+          16: begin
+                pfGetRGB(Temp.NowPixelFormat, PWord(SrcP)^, cR, cG, cB);
+                Inc(PWord(SrcP));
+              end;
+          24: begin
+                with PBGR(SrcP)^ do
+                begin
+                  cR := R;
+                  cG := G;
+                  cB := B;
+                end;
+
+                Inc(PBGR(SrcP));
+              end;
+          32: begin
+                pfGetRGB(Temp.NowPixelFormat, PDWORD(SrcP)^, cR, cG, cB);
+                Inc(PDWORD(SrcP));
+              end;
+        end;
+
+        case BitCount of
+          16: begin
+                PWord(DestP)^ := pfRGB(NowPixelFormat, cR, cG, cB);
+                Inc(PWord(DestP));
+              end;
+          24: begin
+                with PBGR(DestP)^ do
+                begin
+                  R := cR;
+                  G := cG;
+                  B := cB;
+                end;
+                Inc(PBGR(DestP));
+              end;
+          32: begin
+                PDWORD(DestP)^ := pfRGB(NowPixelFormat, cR, cG, cB);
+                Inc(PDWORD(DestP));
+              end;
+        end;
+      end;
+    end;
+  end;
+
+begin
+  if Size=0 then exit;
+
+  Temp := TDIB.Create;
+  try
+    Temp.Assign(Self);
+    SetSize(Temp.Width, Temp.Height, ABitCount);
+
+    if FImage=Temp.FImage then Exit;
+
+    if (Temp.BitCount<=8) and (BitCount<=8) then
+    begin
+      {  The image is converted from the palette color image into the palette color image.  }
+      if Temp.BitCount<=BitCount then
+      begin
+        PaletteToPalette_Inc;
+      end else
+      begin
+        case BitCount of
+          1: begin
+               ColorTable[0] := RGBQuad(0, 0, 0);
+               ColorTable[1] := RGBQuad(255, 255, 255);
+             end;
+          4: CreateHalftonePalette(1, 2, 1);
+          8: CreateHalftonePalette(3, 3, 2);
+        end;
+        UpdatePalette;
+
+        Canvas.Draw(0, 0, Temp);
+      end;
+    end else
+    if (Temp.BitCount<=8) and (BitCount>8) then
+    begin
+      {  The image is converted from the palette color image into the rgb color image.  }
+      PaletteToRGB_or_RGBToRGB;
+    end else
+    if (Temp.BitCount>8) and (BitCount<=8) then
+    begin
+      {  The image is converted from the rgb color image into the palette color image.  }
+      case BitCount of
+        1: begin
+             ColorTable[0] := RGBQuad(0, 0, 0);
+             ColorTable[1] := RGBQuad(255, 255, 255);
+           end;
+        4: CreateHalftonePalette(1, 2, 1);
+        8: CreateHalftonePalette(3, 3, 2);
+      end;
+      UpdatePalette;
+
+      Canvas.Draw(0, 0, Temp);
+    end else
+    if (Temp.BitCount>8) and (BitCount>8) then
+    begin
+      {  The image is converted from the rgb color image into the rgb color image.  }
+      PaletteToRGB_or_RGBToRGB;
+    end;
+  finally
+    Temp.Free;
+  end;
+end;
+
+{  Special effect  }
+
+procedure TDIB.StartProgress(const Name: string);
+begin
+  FProgressName := Name;
+  FProgressOld := 0;
+  FProgressOldTime := GetTickCount;
+  FProgressY := 0;
+  FProgressOldY := 0;
+  Progress(Self, psStarting, 0, False, Rect(0, 0, Width, Height), FProgressName);
+end;
+
+procedure TDIB.EndProgress;
+begin
+  Progress(Self, psEnding, 100, True, Rect(0, FProgressOldY, Width, Height), FProgressName);
+end;
+
+procedure TDIB.UpdateProgress(PercentY: Integer);
+var
+  Redraw: Boolean;
+  Percent: DWORD;
+begin
+  Redraw := (GetTickCount-FProgressOldTime>200) and (FProgressY-FProgressOldY>32) and
+    (((Height div 3>Integer(FProgressY)) and (FProgressOldY=0)) or (FProgressOldY<>0));
+
+  Percent := PercentY*100 div Height;
+
+  if (Percent<>FProgressOld) or (Redraw) then
+  begin
+    Progress(Self, psRunning, Percent, Redraw,
+      Rect(0, FProgressOldY, Width, FProgressY), FProgressName);
+    if Redraw then
+    begin
+      FProgressOldY := FProgressY;
+      FProgressOldTime := GetTickCount;
+    end;
+
+    FProgressOld := Percent;
+  end;
+
+  Inc(FProgressY);
+end;
+
+procedure TDIB.Mirror(MirrorX, MirrorY: Boolean);
+var
+  x, y, Width2, c: Integer;
+  P1, P2, TempBuf: Pointer;
+begin
+  if Empty then exit;
+  if (not MirrorX) and (not MirrorY) then Exit;
+
+  if (not MirrorX) and (MirrorY) then
+  begin
+    GetMem(TempBuf, WidthBytes);
+    try
+      StartProgress('Mirror');
+      try
+        for y:=0 to Height shr 1-1 do
+        begin
+          P1 := ScanLine[y];
+          P2 := ScanLine[Height-y-1];
+
+          Move(P1^, TempBuf^, WidthBytes);
+          Move(P2^, P1^, WidthBytes);
+          Move(TempBuf^, P2^, WidthBytes);
+
+          UpdateProgress(y*2);
+        end;
+      finally
+        EndProgress;
+      end;
+    finally
+      FreeMem(TempBuf, WidthBytes);
+    end;
+  end else if (MirrorX) and (not MirrorY) then
+  begin
+    Width2 := Width shr 1;
+
+    StartProgress('Mirror');
+    try
+      for y:=0 to Height-1 do
+      begin
+        P1 := ScanLine[y];
+
+        case BitCount of
+          1 : begin
+                for x:=0 to Width2-1 do
+                begin
+                  c := Pixels[x, y];
+                  Pixels[x, y] := Pixels[Width-x-1, y];
+                  Pixels[Width-x-1, y] := c;
+                end;
+              end;
+          4 : begin
+                for x:=0 to Width2-1 do
+                begin
+                  c := Pixels[x, y];
+                  Pixels[x, y] := Pixels[Width-x-1, y];
+                  Pixels[Width-x-1, y] := c;
+                end;
+              end;
+          8 : begin
+                P2 := Pointer(Integer(P1)+Width-1);
+                for x:=0 to Width2-1 do
+                begin
+                  PByte(@c)^ := PByte(P1)^;
+                  PByte(P1)^ := PByte(P2)^;
+                  PByte(P2)^ := PByte(@c)^;
+                  Inc(PByte(P1));
+                  Dec(PByte(P2));
+                end;
+              end;
+          16: begin
+                P2 := Pointer(Integer(P1)+(Width-1)*2);
+                for x:=0 to Width2-1 do
+                begin
+                  PWord(@c)^ := PWord(P1)^;
+                  PWord(P1)^ := PWord(P2)^;
+                  PWord(P2)^ := PWord(@c)^;
+                  Inc(PWord(P1));
+                  Dec(PWord(P2));
+                end;
+              end;
+          24: begin
+                P2 := Pointer(Integer(P1)+(Width-1)*3);
+                for x:=0 to Width2-1 do
+                begin
+                  PBGR(@c)^ := PBGR(P1)^;
+                  PBGR(P1)^ := PBGR(P2)^;
+                  PBGR(P2)^ := PBGR(@c)^;
+                  Inc(PBGR(P1));
+                  Dec(PBGR(P2));
+                end;
+              end;
+          32: begin
+                P2 := Pointer(Integer(P1)+(Width-1)*4);
+                for x:=0 to Width2-1 do
+                begin
+                  PDWORD(@c)^ := PDWORD(P1)^;
+                  PDWORD(P1)^ := PDWORD(P2)^;
+                  PDWORD(P2)^ := PDWORD(@c)^;
+                  Inc(PDWORD(P1));
+                  Dec(PDWORD(P2));
+                end;
+              end;
+        end;
+
+        UpdateProgress(y);
+      end;
+    finally
+      EndProgress;
+    end;
+  end else if (MirrorX) and (MirrorY) then
+  begin
+    StartProgress('Mirror');
+    try
+      for y:=0 to Height shr 1-1 do
+      begin
+        P1 := ScanLine[y];
+        P2 := ScanLine[Height-y-1];
+
+        case BitCount of
+          1 : begin
+                for x:=0 to Width-1 do
+                begin
+                  c := Pixels[x, y];
+                  Pixels[x, y] := Pixels[Width-x-1, Height-y-1];
+                  Pixels[Width-x-1, Height-y-1] := c;
+                end;
+              end;
+          4 : begin
+                for x:=0 to Width-1 do
+                begin
+                  c := Pixels[x, y];
+                  Pixels[x, y] := Pixels[Width-x-1, Height-y-1];
+                  Pixels[Width-x-1, Height-y-1] := c;
+                end;
+              end;
+          8 : begin
+                P2 := Pointer(Integer(P2)+Width-1);
+                for x:=0 to Width-1 do
+                begin
+                  PByte(@c)^ := PByte(P1)^;
+                  PByte(P1)^ := PByte(P2)^;
+                  PByte(P2)^ := PByte(@c)^;
+                  Inc(PByte(P1));
+                  Dec(PByte(P2));
+                end;
+              end;
+          16: begin
+                P2 := Pointer(Integer(P2)+(Width-1)*2);
+                for x:=0 to Width-1 do
+                begin
+                  PWord(@c)^ := PWord(P1)^;
+                  PWord(P1)^ := PWord(P2)^;
+                  PWord(P2)^ := PWord(@c)^;
+                  Inc(PWord(P1));
+                  Dec(PWord(P2));
+                end;
+              end;
+          24: begin
+                P2 := Pointer(Integer(P2)+(Width-1)*3);
+                for x:=0 to Width-1 do
+                begin
+                  PBGR(@c)^ := PBGR(P1)^;
+                  PBGR(P1)^ := PBGR(P2)^;
+                  PBGR(P2)^ := PBGR(@c)^;
+                  Inc(PBGR(P1));
+                  Dec(PBGR(P2));
+                end;
+              end;
+          32: begin
+                P2 := Pointer(Integer(P2)+(Width-1)*4);
+                for x:=0 to Width-1 do
+                begin
+                  PDWORD(@c)^ := PDWORD(P1)^;
+                  PDWORD(P1)^ := PDWORD(P2)^;
+                  PDWORD(P2)^ := PDWORD(@c)^;
+                  Inc(PDWORD(P1));
+                  Dec(PDWORD(P2));
+                end;
+              end;
+        end;
+
+        UpdateProgress(y*2);
+      end;
+    finally
+      EndProgress;
+    end;
+  end;
+end;
+
+procedure TDIB.Blur(ABitCount: Integer; Radius: Integer);
+type
+  TAve = record
+    cR, cG, cB: DWORD;
+    c: DWORD;
+  end;
+  TArrayAve = array[0..0] of TAve;
+
+var
+  Temp: TDIB;
+
+  procedure AddAverage(Y, XCount: Integer; var Ave: TArrayAve);
+  var
+    X: Integer;
+    SrcP: Pointer;
+    AveP: ^TAve;
+    R, G, B: Byte;
+  begin
+    case Temp.BitCount of
+      1 : begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              with Temp.ColorTable[(PByte(Integer(SrcP)+X shr 3)^ and Mask1[x and 7]) shr Shift1[x and 7]], AveP^ do
+              begin
+                Inc(cR, rgbRed);
+                Inc(cG, rgbGreen);
+                Inc(cB, rgbBlue);
+                Inc(c);
+              end;
+              Inc(AveP);
+            end;
+          end;
+      4 : begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              with Temp.ColorTable[(PByte(Integer(SrcP)+X shr 1)^ and Mask4[x and 1]) shr Shift4[x and 1]], AveP^ do
+              begin
+                Inc(cR, rgbRed);
+                Inc(cG, rgbGreen);
+                Inc(cB, rgbBlue);
+                Inc(c);
+              end;
+              Inc(AveP);
+            end;
+          end;
+      8 : begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              with Temp.ColorTable[PByte(SrcP)^], AveP^ do
+              begin
+                Inc(cR, rgbRed);
+                Inc(cG, rgbGreen);
+                Inc(cB, rgbBlue);
+                Inc(c);
+              end;
+              Inc(PByte(SrcP));
+              Inc(AveP);
+            end;
+          end;
+      16: begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              pfGetRGB(Temp.NowPixelFormat, PWord(SrcP)^, R, G, B);
+              with AveP^ do
+              begin
+                Inc(cR, R);
+                Inc(cG, G);
+                Inc(cB, B);
+                Inc(c);
+              end;
+              Inc(PWord(SrcP));
+              Inc(AveP);
+            end;
+          end;
+      24: begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              with PBGR(SrcP)^, AveP^ do
+              begin
+                Inc(cR, R);
+                Inc(cG, G);
+                Inc(cB, B);
+                Inc(c);
+              end;
+              Inc(PBGR(SrcP));
+              Inc(AveP);
+            end;
+          end;
+      32: begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              pfGetRGB(Temp.NowPixelFormat, PDWORD(SrcP)^, R, G, B);
+              with AveP^ do
+              begin
+                Inc(cR, R);
+                Inc(cG, G);
+                Inc(cB, B);
+                Inc(c);
+              end;
+              Inc(PDWORD(SrcP));
+              Inc(AveP);
+            end;
+          end;
+    end;
+  end;
+
+  procedure DeleteAverage(Y, XCount: Integer; var Ave: TArrayAve);
+  var
+    X: Integer;
+    SrcP: Pointer;
+    AveP: ^TAve;
+    R, G, B: Byte;
+  begin
+    case Temp.BitCount of
+      1 : begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              with Temp.ColorTable[(PByte(Integer(SrcP)+X shr 3)^ and Mask1[x and 7]) shr Shift1[x and 7]], AveP^ do
+              begin
+                Dec(cR, rgbRed);
+                Dec(cG, rgbGreen);
+                Dec(cB, rgbBlue);
+                Dec(c);
+              end;
+              Inc(AveP);
+            end;
+          end;
+      4 : begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              with Temp.ColorTable[(PByte(Integer(SrcP)+X shr 1)^ and Mask4[x and 1]) shr Shift4[x and 1]], AveP^ do
+              begin
+                Dec(cR, rgbRed);
+                Dec(cG, rgbGreen);
+                Dec(cB, rgbBlue);
+                Dec(c);
+              end;
+              Inc(AveP);
+            end;
+          end;
+      8 : begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              with Temp.ColorTable[PByte(SrcP)^], AveP^ do
+              begin
+                Dec(cR, rgbRed);
+                Dec(cG, rgbGreen);
+                Dec(cB, rgbBlue);
+                Dec(c);
+              end;
+              Inc(PByte(SrcP));
+              Inc(AveP);
+            end;
+          end;
+      16: begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              pfGetRGB(Temp.NowPixelFormat, PWord(SrcP)^, R, G, B);
+              with AveP^ do
+              begin
+                Dec(cR, R);
+                Dec(cG, G);
+                Dec(cB, B);
+                Dec(c);
+              end;
+              Inc(PWord(SrcP));
+              Inc(AveP);
+            end;
+          end;
+      24: begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              with PBGR(SrcP)^, AveP^ do
+              begin
+                Dec(cR, R);
+                Dec(cG, G);
+                Dec(cB, B);
+                Dec(c);
+              end;
+              Inc(PBGR(SrcP));
+              Inc(AveP);
+            end;
+          end;
+      32: begin
+            SrcP := Pointer(Integer(Temp.TopPBits)+Y*Temp.NextLine);
+            AveP := @Ave;
+            for x:=0 to XCount-1 do
+            begin
+              pfGetRGB(Temp.NowPixelFormat, PDWORD(SrcP)^, R, G, B);
+              with AveP^ do
+              begin
+                Dec(cR, R);
+                Dec(cG, G);
+                Dec(cB, B);
+                Dec(c);
+              end;
+              Inc(PDWORD(SrcP));
+              Inc(AveP);
+            end;
+          end;
+    end;
+  end;
+
+  procedure Blur_Radius_Other;
+  var
+    FirstX, LastX, FirstX2, LastX2, FirstY, LastY: Integer;
+    x, y, x2, y2, jx, jy: Integer;
+    Ave: TAve;
+    AveX: ^TArrayAve;
+    DestP: Pointer;
+    P: PByte;
+  begin
+    GetMem(AveX, Width*SizeOf(TAve));
+    try
+      FillChar(AveX^, Width*SizeOf(TAve), 0);
+
+      FirstX2 := -1;
+      LastX2 := -1;
+      FirstY := -1;
+      LastY := -1;
+
+      x := 0;
+      for x2:=-Radius to Radius do
+      begin
+        jx := x+x2;
+        if (jx>=0) and (jx<Width) then
+        begin
+          if FirstX2=-1 then FirstX2 := jx;
+          if LastX2<jx then LastX2 := jx;
+        end;
+      end;
+
+      y := 0;
+      for y2:=-Radius to Radius do
+      begin
+        jy := y+y2;
+        if (jy>=0) and (jy<Height) then
+        begin
+          if FirstY=-1 then FirstY := jy;
+          if LastY<jy then LastY := jy;
+        end;
+      end;
+
+      for y:=FirstY to LastY do
+        AddAverage(y, Temp.Width, AveX^);
+
+      for y:=0 to Height-1 do
+      begin
+        DestP := ScanLine[y];
+
+        {  The average is updated.  }
+        if y-FirstY=Radius+1 then
+        begin
+          DeleteAverage(FirstY, Temp.Width, AveX^);
+          Inc(FirstY);
+        end;
+
+        if LastY-y=Radius-1 then
+        begin
+          Inc(LastY); if LastY>=Height then LastY := Height-1;
+          AddAverage(LastY, Temp.Width, AveX^);
+        end;
+
+        {  The average is calculated again.  }
+        FirstX := FirstX2;
+        LastX := LastX2;
+
+        FillChar(Ave, SizeOf(Ave), 0);
+        for x:=FirstX to LastX do
+          with AveX[x] do
+          begin
+            Inc(Ave.cR, cR);
+            Inc(Ave.cG, cG);
+            Inc(Ave.cB, cB);
+            Inc(Ave.c, c);
+          end;
+
+        for x:=0 to Width-1 do
+        begin
+          {  The average is updated.  }
+          if x-FirstX=Radius+1 then
+          begin
+            with AveX[FirstX] do
+            begin
+              Dec(Ave.cR, cR);
+              Dec(Ave.cG, cG);
+              Dec(Ave.cB, cB);
+              Dec(Ave.c, c);
+            end;
+            Inc(FirstX);
+          end;
+
+          if LastX-x=Radius-1 then
+          begin
+            Inc(LastX); if LastX>=Width then LastX := Width-1;
+            with AveX[LastX] do
+            begin
+              Inc(Ave.cR, cR);
+              Inc(Ave.cG, cG);
+              Inc(Ave.cB, cB);
+              Inc(Ave.c, c);
+            end;
+          end;
+
+          {  The average is written.  }
+          case BitCount of
+            1 : begin
+                  P := @PArrayByte(DestP)[X shr 3];
+                  with Ave do
+                    P^ := (P^ and Mask1n[X and 7]) or (DWORD(Ord(((cR+cG+cB) div c) div 3>127)) shl Shift1[X and 7]);
+                end;
+            4 : begin
+                  P := @PArrayByte(DestP)[X shr 1];
+                  with Ave do
+                    P^ := (P^ and Mask4n[X and 1]) or (((((cR+cG+cB) div c) div 3) shr 4) shl Shift4[X and 1]);
+                end;
+            8 : begin
+                  with Ave do
+                    PByte(DestP)^ := ((cR+cG+cB) div c) div 3;
+                  Inc(PByte(DestP));
+                end;
+            16: begin
+                  with Ave do
+                    PWORD(DestP)^ := pfRGB(NowPixelFormat, cR div c, cG div c, cB div c);
+                  Inc(PWORD(DestP));
+                end;
+            24: begin
+                  with PBGR(DestP)^, Ave do
+                  begin
+                    R := cR div c;
+                    G := cG div c;
+                    B := cB div c;
+                  end;
+                  Inc(PBGR(DestP));
+                end;
+            32: begin
+                  with Ave do
+                    PDWORD(DestP)^ := pfRGB(NowPixelFormat, cR div c, cG div c, cB div c);
+                  Inc(PDWORD(DestP));
+                end;
+          end;
+        end;
+
+        UpdateProgress(y);
+      end;
+    finally
+      FreeMem(AveX);
+    end;
+  end;
+
+var
+  i, j: Integer;
+begin
+  if Empty or (Radius=0) then Exit;
+
+  Radius := Abs(Radius);
+
+  StartProgress('Blur');
+  try
+    Temp := TDIB.Create;
+    try
+      Temp.Assign(Self);
+      SetSize(Width, Height, ABitCount);
+
+      if ABitCount<=8 then
+      begin
+        FillChar(ColorTable, SizeOf(ColorTable), 0);
+        for i:=0 to (1 shl ABitCount)-1 do
+        begin
+          j := i * (1 shl (8-ABitCount));
+          j := j or (j shr ABitCount);
+          ColorTable[i] := RGBQuad(j, j, j);
+        end;
+        UpdatePalette;
+      end;
+
+      Blur_Radius_Other;
+    finally
+      Temp.Free;
+    end;
+  finally
+    EndProgress;
+  end;
+end;
+
+procedure TDIB.Negative;
+var
+  i, i2: Integer;
+  P: Pointer;
+begin
+  if Empty then exit;
+
+  if BitCount<=8 then
+  begin
+    for i:=0 to 255 do
+      with ColorTable[i] do
+      begin
+        rgbRed := 255-rgbRed;
+        rgbGreen := 255-rgbGreen;
+        rgbBlue := 255-rgbBlue;
+      end;
+    UpdatePalette;
+  end else
+  begin
+    P := PBits;
+    i2 := Size;
+    asm
+      mov ecx,i2
+      mov eax,P
+      mov edx,ecx
+
+    {  Unit of DWORD.  }
+    @@qword_skip:
+      shr ecx,2
+      jz @@dword_skip
+
+      dec ecx
+    @@dword_loop:
+      not dword ptr [eax+ecx*4]
+      dec ecx
+      jnl @@dword_loop
+
+      mov ecx,edx
+      shr ecx,2
+      add eax,ecx*4
+
+    {  Unit of Byte.  }
+    @@dword_skip:
+      mov ecx,edx
+      and ecx,3
+      jz @@byte_skip
+
+      dec ecx
+    @@loop_byte:
+      not byte ptr [eax+ecx]
+      dec ecx
+      jnl @@loop_byte
+
+    @@byte_skip:
+    end;
+  end;
+end;
+
+procedure TDIB.Greyscale(ABitCount: Integer);
+var
+  YTblR, YTblG, YTblB: array[0..255] of Byte;
+  i, j, x, y: Integer;
+  c: DWORD;
+  R, G, B: Byte;
+  Temp: TDIB;
+  DestP, SrcP: Pointer;
+  P: PByte;
+begin
+  if Empty then exit;
+
+  Temp := TDIB.Create;
+  try
+    Temp.Assign(Self);
+    SetSize(Width, Height, ABitCount);
+
+    if ABitCount<=8 then
+    begin
+      FillChar(ColorTable, SizeOf(ColorTable), 0);
+      for i:=0 to (1 shl ABitCount)-1 do
+      begin
+        j := i * (1 shl (8-ABitCount));
+        j := j or (j shr ABitCount);
+        ColorTable[i] := RGBQuad(j, j, j);
+      end;
+      UpdatePalette;
+    end;
+
+    for i:=0 to 255 do
+    begin
+      YTblR[i] := Trunc(0.3588*i);
+      YTblG[i] := Trunc(0.4020*i);
+      YTblB[i] := Trunc(0.2392*i);
+    end;
+
+    c := 0;
+
+    StartProgress('Greyscale');
+    try
+      for y:=0 to Height-1 do
+      begin
+        DestP := ScanLine[y];
+        SrcP := Temp.ScanLine[y];
+
+        for x:=0 to Width-1 do
+        begin
+          case Temp.BitCount of
+            1 : begin
+                  with Temp.ColorTable[(PArrayByte(SrcP)[X shr 3] and Mask1[X and 7]) shr Shift1[X and 7]] do
+                    c := YTblR[rgbRed]+YTblG[rgbGreen]+YTblB[rgbBlue];
+                end;
+            4 : begin
+                  with Temp.ColorTable[(PArrayByte(SrcP)[X shr 1] and Mask4[X and 1]) shr Shift4[X and 1]] do
+                    c := YTblR[rgbRed]+YTblG[rgbGreen]+YTblB[rgbBlue];
+                end;
+            8 : begin
+                  with Temp.ColorTable[PByte(SrcP)^] do
+                    c := YTblR[rgbRed]+YTblG[rgbGreen]+YTblB[rgbBlue];
+                  Inc(PByte(SrcP));
+                end;
+            16: begin
+                  pfGetRGB(Temp.NowPixelFormat, PWord(SrcP)^, R, G, B);
+                  c := YTblR[R]+YTblR[G]+YTblR[B];
+                  Inc(PWord(SrcP));
+                end;
+            24: begin
+                  with PBGR(SrcP)^ do
+                    c := YTblR[R]+YTblG[G]+YTblB[B];
+                  Inc(PBGR(SrcP));
+                end;
+            32: begin
+                  pfGetRGB(Temp.NowPixelFormat, PDWORD(SrcP)^, R, G, B);
+                  c := YTblR[R]+YTblR[G]+YTblR[B];
+                  Inc(PDWORD(SrcP));
+                end;
+          end;
+
+          case BitCount of
+            1 : begin
+                  P := @PArrayByte(DestP)[X shr 3];
+                  P^ := (P^ and Mask1n[X and 7]) or (DWORD(Ord(c>127)) shl Shift1[X and 7]);
+                end;
+            4 : begin
+                  P := @PArrayByte(DestP)[X shr 1];
+                  P^ := (P^ and Mask4n[X and 1]) or ((c shr 4) shl Shift4[X and 1]);
+                end;
+            8 : begin
+                  PByte(DestP)^ := c;
+                  Inc(PByte(DestP));
+                end;
+            16: begin
+                  PWord(DestP)^ := pfRGB(NowPixelFormat, c, c, c);
+                  Inc(PWord(DestP));
+                end;
+            24: begin
+                  with PBGR(DestP)^ do
+                  begin
+                    R := c;
+                    G := c;
+                    B := c;
+                  end;
+                  Inc(PBGR(DestP));
+                end;
+            32: begin
+                  PDWORD(DestP)^ := pfRGB(NowPixelFormat, c, c, c);
+                  Inc(PDWORD(DestP));
+                end;
+          end;
+        end;
+
+        UpdateProgress(y);
+      end;
+    finally
+      EndProgress;
+    end;
+  finally
+    Temp.Free;
+  end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+// Version : 0.1 - 26/06/2000                                                                     //
+// Version : 0.2 - 04/07/2000                                                                     //
+//   At someone's request, i have added 3 news effects :                                          //
+//    1 - Rotate                                                                                  //
+//    2 - SplitBlur                                                                               //
+//    3 - GaussianBlur                                                                            //
+//--------------------------------------------------------------------------------------------------
+//                           -   NEW SPECIAL EFFECT   -  (English)                                //
+//--------------------------------------------------------------------------------------------------
+//   At the start, my idea was to create a component derived from TCustomDXDraw. Unfortunately,   //
+// it's impossible to run a graphic component (derived from TCustomDXDraw) in a conception's      //
+// mode (i don't success, but perhaps, somebody know how doing ! In that case, please help me !!!)//
+// Then, i'm used the DIB's unit for my work, but this unit is poor in special effect. Knowing a  //
+// library with more effect, i'm undertaked to import this library in DIB's unit. You can see the //
+// FastLib library at :                                                                           //
+//                                                                                                //
+//      ->      Gordon Alex Cowie <gfody@jps.net> www.jps.net/gfody                               //
+//                                                                                                //
+//   It was very difficult, because implementation's graphic was very different that DIB's unit.  //
+// Sometimes, i'm deserted the possibility of original effect, particularly in conversion of DIB  //
+// whith 256, 16 and 2 colors. If someone can implement this fonctionnality, thanks to tell me    //
+// how this miracle is possible !!!                                                               //
+// All these procedures are translated and adapted by :                                           //
+//                                                                                                //
+//      ->      Mickey (Michel HIBON) <mhibon@ifrance.com> http://mickey.tsx.org                  //
+//                                                                                                //
+// IMPORTANT : These procedures don't modify the DIB's unit structure                             //
+// Nota Bene : I don't implement these type of graphics (32 and 16 bit per pixels),               //
+//             for one reason : I haven't bitmaps of this type !!!                                //
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//                        -   NOUVEAUX EFFETS SPECIAUX   -  (FranÁais)                            //
+//--------------------------------------------------------------------------------------------------
+//   Au commencement, mon idÈe Ètait de dÈriver un composant de TCustomDXDraw. Malheureusement,   //
+// c'est impossible de faire fonctionner un composant graphique (derivÈ de TCustomDXDraw) en mode //
+// conception (je n'y suis pas parvenu, mais peut-Ítre, que quelqu'un sait comment faire ! Dans   //
+// ce cas, vous seriez aimable de m'aider !!!)                                                    //
+// Alors, j'ai utilisÈ l'unitÈ DIB pour mon travail,mais celle-ci est pauvre en effet spÈciaux.   //
+// Connaissant une librairie avec beaucoup plus d'effets spÈciaux, j'ai entrepris d'importer      //
+// cette librairie dans l'unitÈ DIB. Vous pouvez voir la librairie FastLib ‡ :                    //
+//                                                                                                //
+//      ->      Gordon Alex Cowie <gfody@jps.net> www.jps.net/gfody                               //
+//                                                                                                //
+//   C'Ètait trËs difficile car l'implÈmentation graphique est trËs diffÈrente de l'unitÈ DIB.    //
+// Parfois, j'ai abandonnÈ les possibilitÈs de l'effet original, particuliËrement dans la         //
+// conversion des DIB avec 256, 16 et 2 couleurs. Si quelqu'un arrive ‡ implÈmenter ces           //
+// fonctionnalitÈs, merci de me dire comment ce miracle est possible !!!                          //
+// Toutes ces procÈdures ont ÈtÈ traduites et adaptÈes par:                                       //
+//                                                                                                //
+//      ->      Mickey (Michel HIBON) <mhibon@ifrance.com> http://mickey.tsx.org                  //
+//                                                                                                //
+// IMPORTANT : Ces procÈdures ne modifient pas la structure de l'unitÈ DIB                        //
+// Nota Bene : Je n'ai pas implÈmentÈ ces types de graphiques (32 et 16 bit par pixels),          //
+//             pour une raison : je n'ai pas de bitmap de ce type !!!                                //
+//--------------------------------------------------------------------------------------------------
+
+//--------------------------------------------------------------------------------------------------
+function TDIB.IntToColor(i: integer): TBGR;
+begin
+  Result.b := i shr 16;
+  Result.g := i shr 8;
+  Result.r := i;
+end;
+
+//--------------------------------------------------------------------------------------------------
+function TDIB.Interval(iMin, iMax, iValue: Integer; iMark: boolean): Integer;
+begin
+  if iMark then
+    begin
+      if iValue < iMin then
+        Result := iMin
+      else
+        if iValue > iMax then
+          Result := iMax
+        else
+          Result := iValue;
+    end
+  else
+    begin
+      if iValue < iMin then
+        Result := iMin
+      else
+        if iValue > iMax then
+          Result := iMin
+        else
+          Result := iValue;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.Contrast(Amount: integer);
+var
+  x,y: Integer;
+  Table1: array [0..255] of Byte;
+  i: Byte;
+  S,D: pointer;
+  Temp1: TDIB;
+  color: DWORD;
+  P: PByte;
+  R, G, B: Byte;
+
+begin
+  D := nil;
+  S := nil;
+  Temp1 := nil;
+  for i := 0 to 126 do
+    begin
+      y := (Abs(128 - i) * Amount) div 256;
+      Table1[i] := IntToByte(i - y);
+    end;
+  for i := 127 to 255 do
+    begin
+      y := (Abs(128 - i) * Amount) div 256;
+      Table1[i] := IntToByte(i + y);
+    end;
+  case BitCount of
+    32 : Exit;  // I haven't bitmap of this type ! Sorry
+    24 : ;      // nothing to do
+    16 : ;  // I have an artificial bitmap for this type ! i don't sure that it works
+    8,4 :
+      begin
+        Temp1 := TDIB.Create;
+        Temp1.Assign(self);
+        Temp1.SetSize(Width, Height, BitCount);
+        for i := 0 to 255 do
+          begin
+            with ColorTable[i] do
+              begin
+                rgbRed := IntToByte(Table1[rgbRed]);
+                rgbGreen := IntToByte(Table1[rgbGreen]);
+                rgbBlue := IntToByte(Table1[rgbBlue]);
+              end;
+          end;
+        UpdatePalette;
+      end;
+  else
+    // if the number of pixel is equal to 1 then exit of procedure
+    Exit;
+  end;
+  for y := 0 to Pred(Height) do
+    begin
+      case BitCount of
+        24, 16 : D := ScanLine[y];
+        8,4  :
+          begin
+            D := Temp1.ScanLine[y];
+            S := Temp1.ScanLine[y];
+          end;
+      else
+      end;
+      for x := 0 to Pred(Width) do
+        begin
+          case BitCount of
+            32 : ;
+            24 :
+              begin
+                PBGR(D)^.B := Table1[PBGR(D)^.B];
+                PBGR(D)^.G := Table1[PBGR(D)^.G];
+                PBGR(D)^.R := Table1[PBGR(D)^.R];
+                Inc(PBGR(D));
+              end;
+            16 :
+              begin
+                pfGetRGB(NowPixelFormat, PWord(D)^, R, G, B);
+                PWord(D)^ := Table1[R] + Table1[G] + Table1[B];
+                Inc(PWord(D));
+              end;
+            8 :
+              begin
+                with Temp1.ColorTable[PByte(S)^] do
+                  color := rgbRed + rgbGreen + rgbBlue;
+                Inc(PByte(S));
+                PByte(D)^ := color;
+                Inc(PByte(D));
+              end;
+            4 :
+              begin
+                with Temp1.ColorTable[PByte(S)^] do
+                  color := rgbRed + rgbGreen + rgbBlue;
+                Inc(PByte(S));
+                P := @PArrayByte(D)[X shr 1];
+                P^ := (P^ and Mask4n[X and 1]) or (color shl Shift4[X and 1]);
+              end;
+          else
+          end;
+        end;
+    end;
+  Case BitCount of
+    8,4 : Temp1.Free;
+  else
+  end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.Saturation(Amount: integer);
+var
+  Grays: array[0..767] of Integer;
+  Alpha: array[0..255] of Word;
+  Gray,x,y: Integer;
+  i: Byte;
+  S,D: pointer;
+  Temp1: TDIB;
+  color: DWORD;
+  P: PByte;
+  R, G, B: Byte;
+
+begin
+  D := nil;
+  S := nil;
+  Temp1 := nil;
+  for i := 0 to 255 do
+    Alpha[i] := (i * Amount) shr 8;
+  x := 0;
+  for i := 0 to 255 do
+    begin
+      Gray := i - Alpha[i];
+      Grays[x] := Gray;
+      Inc(x);
+      Grays[x] := Gray;
+      Inc(x);
+      Grays[x] := Gray;
+      Inc(x);
+    end;
+  case BitCount of
+    32 : Exit;  // I haven't bitmap of this type ! Sorry
+    24 : ;      // nothing to do
+    16 : ;  // I have an artificial bitmap for this type ! i don't sure that it works
+    8,4 :
+      begin
+        Temp1 := TDIB.Create;
+        Temp1.Assign(self);
+        Temp1.SetSize(Width, Height, BitCount);
+        for i := 0 to 255 do
+          begin
+            with ColorTable[i] do
+              begin
+                Gray := Grays[rgbRed + rgbGreen + rgbBlue];
+                rgbRed := IntToByte(Gray + Alpha[rgbRed]);
+                rgbGreen := IntToByte(Gray + Alpha[rgbGreen]);
+                rgbBlue := IntToByte(Gray + Alpha[rgbBlue]);
+              end;
+          end;
+        UpdatePalette;
+      end;
+  else
+    // if the number of pixel is equal to 1 then exit of procedure
+    Exit;
+  end;
+  for y := 0 to Pred(Height) do
+    begin
+      case BitCount of
+        24, 16 : D := ScanLine[y];
+        8,4  :
+          begin
+            D := Temp1.ScanLine[y];
+            S := Temp1.ScanLine[y];
+          end;
+      else
+      end;
+      for x := 0 to Pred(Width) do
+        begin
+          case BitCount of
+            32 : ;
+            24 :
+              begin
+                Gray := Grays[PBGR(D)^.R + PBGR(D)^.G + PBGR(D)^.B];
+                PBGR(D)^.B := IntToByte(Gray + Alpha[PBGR(D)^.B]);
+                PBGR(D)^.G := IntToByte(Gray + Alpha[PBGR(D)^.G]);
+                PBGR(D)^.R := IntToByte(Gray + Alpha[PBGR(D)^.R]);
+                Inc(PBGR(D));
+              end;
+            16 :
+              begin
+                pfGetRGB(NowPixelFormat, PWord(D)^, R, G, B);
+                PWord(D)^ := IntToByte(Gray + Alpha[B]) + IntToByte(Gray + Alpha[G]) +
+                             IntToByte(Gray + Alpha[R]);
+                Inc(PWord(D));
+              end;
+            8 :
+              begin
+                with Temp1.ColorTable[PByte(S)^] do
+                  color := rgbRed + rgbGreen + rgbBlue;
+                Inc(PByte(S));
+                PByte(D)^ := color;
+                Inc(PByte(D));
+              end;
+            4 :
+              begin
+                with Temp1.ColorTable[PByte(S)^] do
+                  color := rgbRed + rgbGreen + rgbBlue;
+                Inc(PByte(S));
+                P := @PArrayByte(D)[X shr 1];
+                P^ := (P^ and Mask4n[X and 1]) or (color shl Shift4[X and 1]);
+              end;
+          else
+          end;
+        end;
+    end;
+  Case BitCount of
+    8,4 : Temp1.Free;
+  else
+  end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.Lightness(Amount: integer);
+var
+  x,y: Integer;
+  Table1: array [0..255] of Byte;
+  i: Byte;
+  S,D: pointer;
+  Temp1: TDIB;
+  color: DWORD;
+  P: PByte;
+  R, G, B: Byte;
+
+begin
+  D := nil;
+  S := nil;
+  Temp1 := nil;
+  if Amount < 0 then
+    begin
+      Amount := -Amount;
+      for i := 0 to 255 do
+        Table1[i] := IntToByte(i - ((Amount * i) shr 8));
+    end
+  else
+    for i := 0 to 255 do
+      Table1[i] := IntToByte(i + ((Amount * (i xor 255)) shr 8));
+  case BitCount of
+    32 : Exit;  // I haven't bitmap of this type ! Sorry
+    24 : ;      // nothing to do
+    16 : ;  // I have an artificial bitmap for this type ! i don't sure that it works
+    8,4 :
+      begin
+        Temp1 := TDIB.Create;
+        Temp1.Assign(self);
+        Temp1.SetSize(Width, Height, BitCount);
+        for i := 0 to 255 do
+          begin
+            with ColorTable[i] do
+              begin
+                rgbRed := IntToByte(Table1[rgbRed]);
+                rgbGreen := IntToByte(Table1[rgbGreen]);
+                rgbBlue := IntToByte(Table1[rgbBlue]);
+              end;
+          end;
+        UpdatePalette;
+      end;
+  else
+    // if the number of pixel is equal to 1 then exit of procedure
+    Exit;
+  end;
+  for y := 0 to Pred(Height) do
+    begin
+      case BitCount of
+        24, 16 : D := ScanLine[y];
+        8,4  :
+          begin
+            D := Temp1.ScanLine[y];
+            S := Temp1.ScanLine[y];
+          end;
+      else
+      end;
+      for x := 0 to Pred(Width) do
+        begin
+          case BitCount of
+            32 : ;
+            24 :
+              begin
+                PBGR(D)^.B := Table1[PBGR(D)^.B];
+                PBGR(D)^.G := Table1[PBGR(D)^.G];
+                PBGR(D)^.R := Table1[PBGR(D)^.R];
+                Inc(PBGR(D));
+              end;
+            16 :
+              begin
+                pfGetRGB(NowPixelFormat, PWord(D)^, R, G, B);
+                PWord(D)^ := Table1[R] + Table1[G] + Table1[B];
+                Inc(PWord(D));
+              end;
+            8 :
+              begin
+                with Temp1.ColorTable[PByte(S)^] do
+                  color := rgbRed + rgbGreen + rgbBlue;
+                Inc(PByte(S));
+                PByte(D)^ := color;
+                Inc(PByte(D));
+              end;
+            4 :
+              begin
+                with Temp1.ColorTable[PByte(S)^] do
+                  color := rgbRed + rgbGreen + rgbBlue;
+                Inc(PByte(S));
+                P := @PArrayByte(D)[X shr 1];
+                P^ := (P^ and Mask4n[X and 1]) or (color shl Shift4[X and 1]);
+              end;
+          else
+          end;
+        end;
+    end;
+  Case BitCount of
+    8,4 : Temp1.Free;
+  else
+  end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.AddRGB(ra,ga,ba: byte);
+var
+  Table: array [0..255] of TBGR;
+  x,y: Integer;
+  i: Byte;
+  D: pointer;
+  P: PByte;
+  color: DWORD;
+  Temp1: TDIB;
+  R, G, B: Byte;
+
+begin
+  color := 0;
+  D := nil;
+  Temp1 := nil;
+  case BitCount of
+    32 : Exit;  // I haven't bitmap of this type ! Sorry
+    24,16 :
+      begin
+        for i := 0 to 255 do
+          begin
+            Table[i].b := IntToByte(i + ba);
+            Table[i].g := IntToByte(i + ga);
+            Table[i].r := IntToByte(i + ra);
+          end;
+      end;
+    8,4 :
+      begin
+        Temp1 := TDIB.Create;
+        Temp1.Assign(self);
+        Temp1.SetSize(Width, Height, BitCount);
+        for i := 0 to 255 do
+          begin
+            with ColorTable[i] do
+              begin
+                rgbRed := IntToByte(rgbRed + ra);
+                rgbGreen := IntToByte(rgbGreen + ga);
+                rgbBlue := IntToByte(rgbBlue + ba);
+              end;
+          end;
+        UpdatePalette;
+      end;
+  else
+    // if the number of pixel is equal to 1 then exit of procedure
+    Exit;
+  end;
+  for y := 0 to Pred(Height) do
+    begin
+      case BitCount of
+        24,16 : D := ScanLine[y];
+        8,4  :
+          begin
+            D := Temp1.ScanLine[y];
+          end;
+      else
+      end;
+      for x := 0 to Pred(Width) do
+        begin
+          case BitCount of
+            32 : ;  // I haven't bitmap of this type ! Sorry
+            24 :
+              begin
+                PBGR(D)^.B := Table[PBGR(D)^.B].b;
+                PBGR(D)^.G := Table[PBGR(D)^.G].g;
+                PBGR(D)^.R := Table[PBGR(D)^.R].r;
+                Inc(PBGR(D));
+              end;
+            16 :
+              begin
+                pfGetRGB(NowPixelFormat, PWord(D)^, R, G, B);
+                PWord(D)^ := Table[R].r + Table[G].g + Table[B].b;
+                Inc(PWord(D));
+              end;
+            8 :
+              begin
+                Inc(PByte(D));
+              end;
+            4 :
+              begin
+                P := @PArrayByte(D)[X shr 1];
+                P^ := (P^ and Mask4n[X and 1]) or (color shl Shift4[X and 1]);
+              end;
+          else
+          end;
+        end;
+    end;
+  Case BitCount of
+    8,4 : Temp1.Free;
+  else
+  end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+function TDIB.Filter(Dest: TDIB; Filter: TFilter): boolean;
+var
+  Sum,r,g,b,x,y: integer;
+  a,i,j: byte;
+  tmp: TBGR;
+  Col: PBGR;
+  D: Pointer;
+
+begin
+  Result := True;
+  Sum := Filter[0,0] + Filter[1,0] + Filter[2,0] +
+         Filter[0,1] + Filter[1,1] + Filter[2,1] +
+         Filter[0,2] + Filter[1,2] + Filter[2,2];
+  if Sum = 0 then
+    Sum := 1;
+  Col := PBits;
+  for y := 0 to Pred(Height) do
+    begin
+      D := Dest.ScanLine[y];
+      for x := 0 to Pred(Width) do
+        begin
+          r := 0; g := 0; b := 0;
+          case BitCount of
+            32,16,4,1:
+              begin
+                Result := False;
+                Exit;
+              end;
+            24:
+              begin
+                for i := 0 to 2 do
+                  begin
+                    for j := 0 to 2 do
+                      begin
+                        Tmp := IntToColor(Pixels[Interval(0,Pred(Width),x + Pred(i),True),
+                                                 Interval(0,Pred(Height),y + Pred(j),True)]);
+                        Inc(b, Filter[i,j] * Tmp.b);
+                        Inc(g, Filter[i,j] * Tmp.g);
+                        Inc(r, Filter[i,j] * Tmp.r);
+                      end;
+                  end;
+                Col.b := IntToByte(b div Sum);
+                Col.g := IntToByte(g div Sum);
+                Col.r := IntToByte(r div Sum);
+                Dest.Pixels[x,y] := rgb(Col.r,Col.g,Col.b);
+              end;
+            8 :
+              begin
+                for i := 0 to 2 do
+                  begin
+                    for j := 0 to 2 do
+                      begin
+                        a := (Pixels[Interval(0,Pred(Width),x + Pred(i),True),
+                                     Interval(0,Pred(Height),y + Pred(j),True)]);
+                        tmp.r := ColorTable[a].rgbRed;
+                        tmp.g := ColorTable[a].rgbGreen;
+                        tmp.b := ColorTable[a].rgbBlue;
+                        Inc(b, Filter[i,j] * Tmp.b);
+                        Inc(g, Filter[i,j] * Tmp.g);
+                        Inc(r, Filter[i,j] * Tmp.r);
+                      end;
+                  end;
+                Col.b := IntToByte(b div Sum);
+                Col.g := IntToByte(g div Sum);
+                Col.r := IntToByte(r div Sum);
+                PByte(D)^:= rgb(Col.r,Col.g,Col.b);
+                Inc(PByte(D));
+              end;
+          end;
+        end;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.Spray(Amount: integer);
+var
+  value,x,y: Integer;
+  D: Pointer;
+  color: DWORD;
+  P: PByte;
+
+begin
+  for y := Pred(Height) downto 0 do
+    begin
+      D := ScanLine[y];
+      for x := 0 to Pred(Width) do
+        begin
+          value := Random(Amount);
+          color := Pixels[Interval(0,Pred(Width),x + (value - Random(value * 2)), True),
+                          Interval(0,Pred(Height),y + (value - Random(value * 2)), True)];
+          case BitCount of
+            32 :
+              begin
+                PDWord(D)^ := color;
+                Inc(PDWord(D));
+              end;
+            24 :
+              begin
+                PBGR(D)^ := IntToColor(color);
+                Inc(PBGR(D));
+              end;
+            16 :
+              begin
+                PWord(D)^ := color;
+                Inc(PWord(D));
+              end;
+            8 :
+              begin
+                PByte(D)^ := color;
+                Inc(PByte(D));
+              end;
+            4 :
+              begin
+                P := @PArrayByte(D)[X shr 1];
+                P^ := (P^ and Mask4n[X and 1]) or (color shl Shift4[X and 1]);
+              end;
+            1 :
+              begin
+                P := @PArrayByte(D)[X shr 3];
+                P^ := (P^ and Mask1n[X and 7]) or (color shl Shift1[X and 7]);
+              end;
+            else
+          end;
+        end;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.Sharpen(Amount: Integer);
+var
+  Lin0, Lin1, Lin2: PLines;
+  pc: PBGR;
+  cx,x,y: Integer;
+  Buf: array [0..8] of TBGR;
+  S,D,D1,P: pointer;
+  color: TBGR;
+  c: DWORD;
+  i: byte;
+  P1: PByte;
+  Temp1: TDIB;
+
+begin
+  D := nil;
+  GetMem(pc,SizeOf(TBGR));
+  c := 0;
+  Temp1 := nil;
+  Case Bitcount of
+    32,16,1 : Exit;
+    24 :
+      begin
+        Temp1 := TDIB.Create;
+        Temp1.Assign(self);
+        Temp1.SetSize(Width,Height,bitCount);
+      end;
+    8 :
+      begin
+        Temp1 := TDIB.Create;
+        Temp1.Assign(self);
+        Temp1.SetSize(Width,Height,bitCount);
+        for i := 0 to 255 do
+          begin
+            with Temp1.ColorTable[i] do
+              begin
+                Buf[0].B := ColorTable[i - Amount].rgbBlue;
+                Buf[0].G := ColorTable[i - Amount].rgbGreen;
+                Buf[0].R := ColorTable[i - Amount].rgbRed;
+                Buf[1].B := ColorTable[i].rgbBlue;
+                Buf[1].G := ColorTable[i].rgbGreen;
+                Buf[1].R := ColorTable[i].rgbRed;
+                Buf[2].B := ColorTable[i + Amount].rgbBlue;
+                Buf[2].G := ColorTable[i + Amount].rgbGreen;
+                Buf[2].R := ColorTable[i + Amount].rgbRed;
+                Buf[3].B := ColorTable[i - Amount].rgbBlue;
+                Buf[3].G := ColorTable[i - Amount].rgbGreen;
+                Buf[3].R := ColorTable[i - Amount].rgbRed;
+                Buf[4].B := ColorTable[i].rgbBlue;
+                Buf[4].G := ColorTable[i].rgbGreen;
+                Buf[4].R := ColorTable[i].rgbRed;
+                Buf[5].B := ColorTable[i + Amount].rgbBlue;
+                Buf[5].G := ColorTable[i + Amount].rgbGreen;
+                Buf[5].R := ColorTable[i + Amount].rgbRed;
+                Buf[6].B := ColorTable[i - Amount].rgbBlue;
+                Buf[6].G := ColorTable[i - Amount].rgbGreen;
+                Buf[6].R := ColorTable[i - Amount].rgbRed;
+                Buf[7].B := ColorTable[i].rgbBlue;
+                Buf[7].G := ColorTable[i].rgbGreen;
+                Buf[7].R := ColorTable[i].rgbRed;
+                Buf[8].B := ColorTable[i + Amount].rgbBlue;
+                Buf[8].G := ColorTable[i + Amount].rgbGreen;
+                Buf[8].R := ColorTable[i + Amount].rgbRed;
+                Temp1.colorTable[i].rgbBlue := IntToByte((256 * Buf[4].b - (Buf[0].b + Buf[1].b + Buf[2].b + Buf[3].b +
+                                                    Buf[5].b + Buf[6].b + Buf[7].b + Buf[8].b) * 16) div 128);
+                Temp1.colorTable[i].rgbGreen := IntToByte((256 * Buf[4].g - (Buf[0].g + Buf[1].g + Buf[2].g + Buf[3].g +
+                                                     Buf[5].g + Buf[6].g + Buf[7].g + Buf[8].g) * 16) div 128);
+                Temp1.colorTable[i].rgbRed := IntToByte((256 * Buf[4].r - (Buf[0].r + Buf[1].r + Buf[2].r + Buf[3].r +
+                                                   Buf[5].r + Buf[6].r + Buf[7].r + Buf[8].r) * 16) div 128);
+
+              end;
+          end;
+        Temp1.UpdatePalette;
+      end;
+    4 :
+      begin
+        Temp1 := TDIB.Create;
+        Temp1.Assign(self);
+        Temp1.SetSize(Width,Height,bitCount);
+        for i := 0 to 255 do
+          begin
+            with Temp1.ColorTable[i] do
+              begin
+                Buf[0].B := ColorTable[i - Amount].rgbBlue;
+                Buf[0].G := ColorTable[i - Amount].rgbGreen;
+                Buf[0].R := ColorTable[i - Amount].rgbRed;
+                Buf[1].B := ColorTable[i].rgbBlue;
+                Buf[1].G := ColorTable[i].rgbGreen;
+                Buf[1].R := ColorTable[i].rgbRed;
+                Buf[2].B := ColorTable[i + Amount].rgbBlue;
+                Buf[2].G := ColorTable[i + Amount].rgbGreen;
+                Buf[2].R := ColorTable[i + Amount].rgbRed;
+                Buf[3].B := ColorTable[i - Amount].rgbBlue;
+                Buf[3].G := ColorTable[i - Amount].rgbGreen;
+                Buf[3].R := ColorTable[i - Amount].rgbRed;
+                Buf[4].B := ColorTable[i].rgbBlue;
+                Buf[4].G := ColorTable[i].rgbGreen;
+                Buf[4].R := ColorTable[i].rgbRed;
+                Buf[5].B := ColorTable[i + Amount].rgbBlue;
+                Buf[5].G := ColorTable[i + Amount].rgbGreen;
+                Buf[5].R := ColorTable[i + Amount].rgbRed;
+                Buf[6].B := ColorTable[i - Amount].rgbBlue;
+                Buf[6].G := ColorTable[i - Amount].rgbGreen;
+                Buf[6].R := ColorTable[i - Amount].rgbRed;
+                Buf[7].B := ColorTable[i].rgbBlue;
+                Buf[7].G := ColorTable[i].rgbGreen;
+                Buf[7].R := ColorTable[i].rgbRed;
+                Buf[8].B := ColorTable[i + Amount].rgbBlue;
+                Buf[8].G := ColorTable[i + Amount].rgbGreen;
+                Buf[8].R := ColorTable[i + Amount].rgbRed;
+                colorTable[i].rgbBlue := IntToByte((256 * Buf[4].b - (Buf[0].b + Buf[1].b + Buf[2].b + Buf[3].b +
+                                                    Buf[5].b + Buf[6].b + Buf[7].b + Buf[8].b) * 16) div 128);
+                colorTable[i].rgbGreen := IntToByte((256 * Buf[4].g - (Buf[0].g + Buf[1].g + Buf[2].g + Buf[3].g +
+                                                     Buf[5].g + Buf[6].g + Buf[7].g + Buf[8].g) * 16) div 128);
+                colorTable[i].rgbRed := IntToByte((256 * Buf[4].r - (Buf[0].r + Buf[1].r + Buf[2].r + Buf[3].r +
+                                                   Buf[5].r + Buf[6].r + Buf[7].r + Buf[8].r) * 16) div 128);
+              end;
+          end;
+        UpdatePalette;
+      end;
+  end;
+  for y := 0 to Pred(Height) do
+    begin
+      Lin0 := ScanLine[Interval(0,Pred(Height),y - Amount,True)];
+      Lin1 := ScanLine[y];
+      Lin2 := ScanLine[Interval(0,Pred(Height),y + Amount,True)];
+      case Bitcount of
+        24,8,4 : D := Temp1.ScanLine[y];
+      end;
+      for x := 0 to Pred(Width) do
+        begin
+          case BitCount of
+            24 :
+              begin
+                cx := Interval(0,Pred(Width),x - Amount,True);
+                Buf[0] := Lin0[cx];
+                Buf[1] := Lin1[cx];
+                Buf[2] := Lin2[cx];
+                Buf[3] := Lin0[x];
+                Buf[4] := Lin1[x];
+                Buf[5] := Lin2[x];
+                cx := Interval(0,Pred(Width),x + Amount,true);
+                Buf[6] := Lin0[cx];
+                Buf[7] := Lin1[cx];
+                Buf[8] := Lin0[cx];
+                pc.b := IntToByte((256 * Buf[4].b - (Buf[0].b + Buf[1].b + Buf[2].b + Buf[3].b +
+                                   Buf[5].b + Buf[6].b + Buf[7].b + Buf[8].b) * 16) div 128);
+                pc.g := IntToByte((256 * Buf[4].g - (Buf[0].g + Buf[1].g + Buf[2].g + Buf[3].g +
+                                   Buf[5].g + Buf[6].g + Buf[7].g + Buf[8].g) * 16) div 128);
+                pc.r := IntToByte((256 * Buf[4].r - (Buf[0].r + Buf[1].r + Buf[2].r + Buf[3].r +
+                                   Buf[5].r + Buf[6].r + Buf[7].r + Buf[8].r) * 16) div 128);
+                PBGR(D)^.B := pc.b;
+                PBGR(D)^.G := pc.g;
+                PBGR(D)^.R := pc.r;
+                Inc(PBGR(D));
+              end;
+            8 :
+              begin
+                Inc(PByte(D));
+              end;
+            4 :
+              begin
+                P1 := @PArrayByte(D)[X shr 1];
+                P1^ := ((P1^ and Mask4n[X and 1]) or ((c shl Shift4[X and 1])));
+              end;
+          end;
+        end;
+    end;
+  Case BitCount of
+    24,8 :
+      begin
+        Assign(Temp1);
+        Temp1.Free;
+      end;
+    4 : Temp1.Free;
+  end;
+  FreeMem(pc,SizeOf(TBGR));
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.Emboss;
+var
+  x,y: longint;
+  D,D1,P: pointer;
+  color: TBGR;
+  c: DWORD;
+  P1: PByte;
+
+begin
+  D := nil;
+  D1 := nil;
+  P := nil;
+  case BitCount of
+    32,16,1: Exit;
+    24 :
+      begin
+        D := PBits;
+        D1 := Ptr(Integer(D) + 3);
+      end;
+  else
+  end;
+  for y := 0 to Pred(Height) do
+    begin
+      case Bitcount of
+        8,4 :
+          begin
+            P := ScanLine[y];
+          end;
+      end;
+      for x := 0 to Pred(Width) do
+        begin
+          case BitCount of
+            24 :
+              begin
+                PBGR(D)^.B := ((PBGR(D)^.B + (PBGR(D1)^.B xor $FF)) shr 1);
+                PBGR(D)^.G := ((PBGR(D)^.G + (PBGR(D1)^.G xor $FF)) shr 1);
+                PBGR(D)^.R := ((PBGR(D)^.R + (PBGR(D1)^.R xor $FF)) shr 1);
+                Inc(PBGR(D));
+                if (y < Height - 2) and (x < Width - 2) then
+                  Inc(PBGR(D1));
+              end;
+            8 :
+              begin
+                color.R := (((Pixels[x,y] + (Pixels[x+3,y] xor $FF)) shr 1) + 30) div 3;
+                color.G := (((Pixels[x,y] + (Pixels[x+3,y] xor $FF)) shr 1) + 30) div 3;
+                color.B := (((Pixels[x,y] + (Pixels[x+3,y] xor $FF)) shr 1) + 30) div 3;
+                c := (color.R + color.G + color.B) shr 1;
+                PByte(P)^ := c;
+                Inc(PByte(P));
+              end;
+            4 :
+              begin
+                color.R := (((Pixels[x,y] + (Pixels[x+3,y] xor $FF) + 1) shr 1) + 30) div 3;
+                color.G := (((Pixels[x,y] + (Pixels[x+3,y] xor $FF) - 1) shr 1) + 30) div 3;
+                color.B := (((Pixels[x,y] + (Pixels[x+3,y] xor $FF) + 1) shr 1) + 30) div 3;
+                c := (color.R + color.G + color.B) shr 1;
+                if c > 64 then
+                  c := c - 8;
+                P1 := @PArrayByte(P)[X shr 1];
+                P1^ := (P1^ and Mask4n[X and 1]) or ((c ) shl Shift4[X and 1]);
+              end;
+          else
+          end;
+        end;
+      case BitCount of
+        24 :
+          begin
+            D := Ptr(Integer(D1));
+            if y < Height - 2 then
+              D1 := Ptr(Integer(D1) + 6)
+            else
+              D1 := Ptr(Integer(ScanLine[Pred(Height)]) + 3);
+          end;
+      else
+      end;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.AddMonoNoise(Amount: integer);
+var
+  value: cardinal;
+  x,y: longint;
+  a: byte;
+  D: pointer;
+  color: DWORD;
+  P: PByte;
+
+begin
+  for y := 0 to Pred(Height) do
+    begin
+      D := ScanLine[y];
+      for x := 0 to Pred(Width) do
+        begin
+          case BitCount of
+            32 : Exit;  // I haven't bitmap of this type ! Sorry
+            24 :
+              begin
+                value := Random(Amount) - (Amount shr 1);
+                PBGR(D)^.B := IntToByte(PBGR(D)^.B + value);
+                PBGR(D)^.G := IntToByte(PBGR(D)^.G + value);
+                PBGR(D)^.R := IntToByte(PBGR(D)^.R + value);
+                Inc(PBGR(D));
+              end;
+            16 : Exit;  // I haven't bitmap of this type ! Sorry
+            8 :
+              begin
+                a := ((Random(Amount shr 1) - (Amount div 4))) div 8;
+                color := Interval(0,255,(pixels[x,y] - a),True);
+                PByte(D)^ := color;
+                Inc(PByte(D));
+              end;
+            4 :
+              begin
+                a := ((Random(Amount shr 1) - (Amount div 4))) div 16;
+                color := Interval(0,15,(pixels[x,y] - a),True);
+                P := @PArrayByte(D)[X shr 1];
+                P^ := ((P^ and Mask4n[X and 1]) or ((color shl Shift4[X and 1])));
+              end;
+            1 :
+              begin
+                a := ((Random(Amount shr 1) - (Amount div 4))) div 32;
+                color := Interval(0,1,(pixels[x,y] - a),True);
+                P := @PArrayByte(D)[X shr 3];
+                P^ := (P^ and Mask1n[X and 7]) or (color shl Shift1[X and 7]);
+              end;
+          else
+          end;
+        end;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.AddGradiantNoise(Amount: byte);
+var
+  a,i: byte;
+  x,y: Integer;
+  Table: array [0..255] of TBGR;
+  S,D: pointer;
+  color: DWORD;
+  Temp1: TDIB;
+  P: PByte;
+
+begin
+  D := nil;
+  S := nil;
+  Temp1 := nil;
+  case BitCount of
+    32 : Exit;  // I haven't bitmap of this type ! Sorry
+    24 :
+      begin
+        for i := 0 to 255 do
+          begin
+            a := Random(Amount);
+            Table[i].b := IntToByte(i + a);
+            Table[i].g := IntToByte(i + a);
+            Table[i].r := IntToByte(i + a);
+          end;
+      end;
+    16 : Exit;  // I haven't bitmap of this type ! Sorry
+    8,4 :
+      begin
+        Temp1 := TDIB.Create;
+        Temp1.Assign(self);
+        Temp1.SetSize(Width, Height, BitCount);
+        for i := 0 to 255 do
+          begin
+            with ColorTable[i] do
+              begin
+                a := Random(Amount);
+                rgbRed := IntToByte(rgbRed + a);
+                rgbGreen := IntToByte(rgbGreen + a);
+                rgbBlue := IntToByte(rgbBlue + a);
+              end;
+          end;
+        UpdatePalette;
+      end;
+  else
+    // if the number of pixel is equal to 1 then exit of procedure
+    Exit;
+  end;
+  for y := 0 to Pred(Height) do
+    begin
+      case BitCount of
+        24 : D := ScanLine[y];
+        8,4  :
+          begin
+            D := Temp1.ScanLine[y];
+            S := Temp1.ScanLine[y];
+          end;
+      else
+      end;
+      for x := 0 to Pred(Width) do
+        begin
+          case BitCount of
+            32 : ;  // I haven't bitmap of this type ! Sorry
+            24 :
+              begin
+                PBGR(D)^.B := Table[PBGR(D)^.B].b;
+                PBGR(D)^.G := Table[PBGR(D)^.G].g;
+                PBGR(D)^.R := Table[PBGR(D)^.R].r;
+                Inc(PBGR(D));
+              end;
+            16 : ;  // I haven't bitmap of this type ! Sorry
+            8 :
+              begin
+                with Temp1.ColorTable[PByte(S)^] do
+                  color := rgbRed + rgbGreen + rgbBlue;
+                Inc(PByte(S));
+                PByte(D)^ := color;
+                Inc(PByte(D));
+              end;
+            4 :
+              begin
+                with Temp1.ColorTable[PByte(S)^] do
+                  color := rgbRed + rgbGreen + rgbBlue;
+                Inc(PByte(S));
+                P := @PArrayByte(D)[X shr 1];
+                P^ := (P^ and Mask4n[X and 1]) or (color shl Shift4[X and 1]);
+              end;
+          else
+          end;
+        end;
+    end;
+  Case BitCount of
+    8,4 : Temp1.Free;
+  else
+  end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+function TDIB.FishEye(bmp: TDIB): boolean;
+var
+  weight,xmid,ymid,fx,fy,r1,r2,dx,dy,rmax: Single;
+  Amount,ifx,ify,ty,tx,new_red,new_green,new_blue,ix,iy: Integer;
+  weight_x, weight_y: array[0..1] of Single;
+  total_red, total_green, total_blue: Single;
+  sli, slo : PLines;
+  D: pointer;
+
+begin
+  Result := True;
+  Case BitCount of
+    32,16,8,4,1:
+      begin
+        Result := False;
+        Exit;
+      end;
+  end;
+  Amount := 1;
+  xmid := Width/2;
+  ymid := Height/2;
+  rmax := Bmp.Width * Amount;
+  for ty := 0 to Pred(Height) do
+    begin
+      for tx := 0 to Pred(Width) do
+        begin
+          dx := tx - xmid;
+          dy := ty - ymid;
+          r1 := Sqrt(dx * dx + dy * dy);
+          if r1 = 0 then
+            begin
+              fx := xmid;
+              fy := ymid;
+            end
+          else
+            begin
+              r2 := rmax / 2 * (1 / (1 - r1 / rmax) - 1);
+              fx := dx * r2 / r1 + xmid;
+              fy := dy * r2 / r1 + ymid;
+            end;
+          ify := Trunc(fy);
+          ifx := Trunc(fx);
+          if fy >= 0  then
+            begin
+              weight_y[1] := fy - ify;
+              weight_y[0] := 1 - weight_y[1];
+            end
+          else
+            begin
+              weight_y[0] := -(fy - ify);
+              weight_y[1] := 1 - weight_y[0];
+            end;
+          if fx >= 0 then
+            begin
+              weight_x[1] := fx - ifx;
+              weight_x[0] := 1 - weight_x[1];
+            end
+          else
+            begin
+              weight_x[0] := -(fx - ifx);
+              Weight_x[1] := 1 - weight_x[0];
+            end;
+          if ifx < 0 then
+            ifx := Pred(Width) - (-ifx mod Width)
+          else
+            if ifx > Pred(Width)  then
+              ifx := ifx mod Width;
+          if ify < 0 then
+            ify := Pred(Height) - (-ify mod Height)
+          else
+            if ify > Pred(Height) then
+              ify := ify mod Height;
+          total_red   := 0.0;
+          total_green := 0.0;
+          total_blue  := 0.0;
+          for ix := 0 to 1 do
+            begin
+              for iy := 0 to 1 do
+                begin
+                  if ify + iy < Height then
+                    sli := ScanLine[ify + iy]
+                  else
+                    sli := ScanLine[Height - ify - iy];
+                  if ifx + ix < Width then
+                    begin
+                      new_red := sli^[ifx + ix].r;
+                      new_green := sli^[ifx + ix].g;
+                      new_blue := sli^[ifx + ix].b;
+                    end
+                  else
+                    begin
+                      new_red := sli^[Width - ifx - ix].r;
+                      new_green := sli^[Width - ifx - ix].g;
+                      new_blue := sli^[Width - ifx - ix].b;
+                    end;
+                  weight := weight_x[ix] * weight_y[iy];
+                  total_red := total_red + new_red * weight;
+                  total_green := total_green + new_green * weight;
+                  total_blue := total_blue + new_blue * weight;
+                end;
+            end;
+          Case bitCount of
+            24 :
+              begin
+                slo := Bmp.ScanLine[ty];
+                slo^[tx].r := Round(total_red);
+                slo^[tx].g := Round(total_green);
+                slo^[tx].b := Round(total_blue);
+              end;
+          else
+            // You can implement this procedure for 16,8,4,2 and 32 BitCount's DIB
+            Exit;
+          end;
+        end;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+function TDIB.SmoothRotateWrap(Bmp: TDIB; cx,cy: Integer; Degree: Extended): boolean;
+var
+  weight, Theta, cosTheta, sinTheta, sfrom_y, sfrom_x: Single;
+  ifrom_y, ifrom_x, xDiff,yDiff, to_y, to_x: Integer;
+  weight_x, weight_y: array[0..1] of Single;
+  ix,iy,new_red, new_green, new_blue: Integer;
+  total_red, total_green, total_blue: Single;
+  sli, slo : PLines;
+
+begin
+  Result := True;
+  Case BitCount of
+    32,16,8,4,1:
+      begin
+        Result := False;
+        Exit;
+      end;
+  end;
+  Theta := -Degree * Pi / 180;
+  sinTheta := Sin(Theta);
+  cosTheta := Cos(Theta);
+  xDiff := (Bmp.Width - Width) div 2;
+  yDiff := (Bmp.Height - Height) div 2;
+  for to_y := 0 to Pred(Bmp.Height) do
+    begin
+      for to_x := 0 to Pred(Bmp.Width) do
+        begin
+          sfrom_x := (cx + (to_x - cx) * cosTheta - (to_y - cy) * sinTheta) - xDiff;
+          ifrom_x := Trunc(sfrom_x);
+          sfrom_y := (cy + (to_x - cx) * sinTheta + (to_y - cy) * cosTheta) - yDiff;
+          ifrom_y := Trunc(sfrom_y);
+          if sfrom_y >= 0  then
+            begin
+              weight_y[1] := sfrom_y - ifrom_y;
+              weight_y[0] := 1 - weight_y[1];
+            end
+          else
+            begin
+              weight_y[0] := -(sfrom_y - ifrom_y);
+              weight_y[1] := 1 - weight_y[0];
+            end;
+          if sfrom_x >= 0 then
+            begin
+              weight_x[1] := sfrom_x - ifrom_x;
+              weight_x[0] := 1 - weight_x[1];
+            end
+          else
+            begin
+              weight_x[0] := -(sfrom_x - ifrom_x);
+              Weight_x[1] := 1 - weight_x[0];
+            end;
+          if ifrom_x < 0 then
+            ifrom_x := Pred(Width) - (-ifrom_x mod Width)
+          else
+            if ifrom_x > Pred(Width) then
+              ifrom_x := ifrom_x mod Width;
+          if ifrom_y < 0 then
+            ifrom_y := Pred(Height) - (-ifrom_y mod Height)
+          else
+            if ifrom_y > Pred(Height) then
+              ifrom_y := ifrom_y mod Height;
+          total_red := 0.0;
+          total_green := 0.0;
+          total_blue := 0.0;
+          for ix := 0 to 1 do
+            begin
+              for iy := 0 to 1 do
+                begin
+                  if ifrom_y + iy < Height then
+                    sli := ScanLine[ifrom_y + iy]
+                  else
+                    sli := ScanLine[Height - ifrom_y - iy];
+                  if ifrom_x + ix < Width then
+                    begin
+                      new_red := sli^[ifrom_x + ix].r;
+                      new_green := sli^[ifrom_x + ix].g;
+                      new_blue := sli^[ifrom_x + ix].b;
+                    end
+                  else
+                    begin
+                      new_red := sli^[Width - ifrom_x - ix].r;
+                      new_green := sli^[Width - ifrom_x - ix].g;
+                      new_blue := sli^[Width - ifrom_x - ix].b;
+                    end;
+                  weight := weight_x[ix] * weight_y[iy];
+                  total_red := total_red + new_red * weight;
+                  total_green := total_green + new_green * weight;
+                  total_blue := total_blue + new_blue * weight;
+                end;
+            end;
+          Case bitCount of
+            24 :
+              begin
+                slo := Bmp.ScanLine[to_y];
+                slo^[to_x].r := Round(total_red);
+                slo^[to_x].g := Round(total_green);
+                slo^[to_x].b := Round(total_blue);
+              end;
+          else
+            // You can implement this procedure for 16,8,4,2 and 32 BitCount's DIB
+            Exit;
+          end;
+        end;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+function TDIB.Rotate(Dst: TDIB;cx,cy:Integer;Angle:Double): boolean;
+var
+  x,y,dx,dy,sdx,sdy,xDiff,yDiff,isinTheta,icosTheta: Integer;
+  D,S: Pointer;
+  sinTheta, cosTheta, Theta: Double;
+  Col: TBGR;
+  i: byte;
+  color: DWORD;
+  P: PByte;
+
+begin
+  D := nil;
+  S := nil;
+  Result := True;
+  dst.SetSize(Width,Height,Bitcount);
+  dst.Canvas.Brush.Color := clBlack;
+  Dst.Canvas.FillRect(Bounds(0,0,Width,Height));
+  Case BitCount of
+    32,16:
+      begin
+        Result := False;
+        Exit;
+      end;
+    8,4,1 :
+      begin
+        for i := 0 to 255 do
+          Dst.ColorTable[i] := ColorTable[i];
+        Dst.UpdatePalette;
+      end;
+  end;
+  Theta := - Angle * Pi / 180;
+  sinTheta := Sin(Theta);
+  cosTheta := Cos(Theta);
+  xDiff := (Dst.Width - Width) div 2;
+  yDiff := (Dst.Height - Height) div 2;
+  isinTheta := Round(sinTheta * $10000);
+  icosTheta := Round(cosTheta * $10000);
+  for y := 0 to Pred(Dst.Height) do
+    begin
+      case BitCount of
+        4,1  :
+          begin
+            D := Dst.ScanLine[y];
+            S := ScanLine[y];
+          end;
+      else
+      end;
+      sdx := Round(((cx + (-cx) * cosTheta - (y - cy) * sinTheta) - xDiff) * $10000);
+      sdy := Round(((cy + (-cy) * sinTheta + (y - cy) * cosTheta) - yDiff) * $10000);
+      for x := 0 to Pred(Dst.Width) do
+        begin
+          dx:=(sdx shr 16);
+          dy:=(sdy shr 16);
+          if (dx > -1) and (dx < Width) and (dy > -1) and (dy < Height) then
+            begin
+              case bitcount of
+                8,24 : Dst.pixels[x,y] := Pixels[dx,dy];
+                4 :
+                  begin
+                    pfGetRGB(NowPixelFormat,Pixels[dx,dy],col.r,col.g,col.b);
+                    color := col.r + col.g + col.b;
+                    Inc(PByte(S));
+                    P := @PArrayByte(D)[x shr 1];
+                    P^ := (P^ and Mask4n[x and 1]) or (color shl Shift4[x and 1]);
+                  end;
+                1 :
+                  begin
+                    pfGetRGB(NowPixelFormat,Pixels[dx,dy],col.r,col.g,col.b);
+                    color := col.r + col.g + col.b;
+                    Inc(PByte(S));
+                    P := @PArrayByte(D)[X shr 3];
+                    P^ := (P^ and Mask1n[X and 7]) or (color shl Shift1[X and 7]);
+                  end;
+              end;
+            end;
+          Inc(sdx,icosTheta);
+          Inc(sdy,isinTheta);
+        end;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.GaussianBlur(Bmp: TDIB;Amount: Integer);
+var
+  i: integer;
+
+begin
+  for i := 1 to Amount do
+    Bmp.SplitBlur(i);
+end;
+//--------------------------------------------------------------------------------------------------
+procedure TDIB.SplitBlur(Amount:Integer);
+var
+  Lin1, Lin2: PLines;
+  cx,x,y: Integer;
+  Buf: array [0..3] of TBGR;
+  D: Pointer;
+
+begin
+  Case Bitcount of
+    32,16,8,4,1 : Exit;
+  end;
+  for y := 0 to Pred(Height) do
+    begin
+      Lin1 := ScanLine[TrimInt(y + Amount,0,Pred(Height))];
+      Lin2 := ScanLine[TrimInt(y - Amount,0,Pred(Height))];
+      D := ScanLine[y];
+      for x := 0 to Pred(Width) do
+        begin
+          cx := TrimInt(x + Amount,0,Pred(Width));
+          Buf[0] := Lin1[cx];
+          Buf[1] := Lin2[cx];
+          cx := TrimInt(x - Amount,0,Pred(Width));
+          Buf[2] := Lin1[cx];
+          Buf[3] := Lin2[cx];
+          PBGR(D)^.b := (Buf[0].b + Buf[1].b + Buf[2].b + Buf[3].b) shr 2;
+          PBGR(D)^.g := (Buf[0].g + Buf[1].g + Buf[2].g + Buf[3].g) shr 2;
+          PBGR(D)^.r := (Buf[0].r + Buf[1].r + Buf[2].r + Buf[3].r) shr 2;
+          Inc(PBGR(D));
+        end;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+function TDIB.Twist(bmp: TDIB; Amount: byte): boolean;
+var
+  fxmid, fymid : Single;
+  txmid, tymid : Single;
+  fx,fy : Single;
+  tx2, ty2 : Single;
+  r : Single;
+  theta : Single;
+  ifx, ify : integer;
+  dx, dy : Single;
+  OFFSET : Single;
+  ty, tx, ix, iy : Integer;
+  weight_x, weight_y : array[0..1] of Single;
+  weight : Single;
+  new_red, new_green, new_blue : Integer;
+  total_red, total_green, total_blue : Single;
+  sli, slo : PLines;
+
+  function ArcTan2(xt,yt : Single): Single;
+  begin
+    if xt = 0 then
+      if yt > 0 then
+        Result := Pi/2
+      else
+        Result := -(Pi/2)
+    else begin
+      Result := ArcTan(yt/xt);
+      if xt < 0 then
+        Result := Pi + ArcTan(yt/xt);
+    end;
+  end;
+
+begin
+  Result := True;
+  Case BitCount of
+    32,16,8,4,1:
+      begin
+        Result := False;
+        Exit;
+      end;
+  end;
+  if Amount = 0 then
+    Amount := 1;
+  OFFSET := -(Pi/2);
+  dx := Pred(Width);
+  dy := Pred(Height);
+  r := Sqrt(dx * dx + dy * dy);
+  tx2 := r;
+  ty2 := r;
+  txmid := (Pred(Width)) / 2;
+  tymid := (Pred(Height)) / 2;
+  fxmid := (Pred(Width)) / 2;
+  fymid := (Pred(Height)) / 2;
+  if tx2 >= Width then
+    tx2 := Pred(Width);
+  if ty2 >= Height then
+    ty2 := Pred(Height);
+  for ty := 0 to Round(ty2) do
+    begin
+      for tx := 0 to Round(tx2) do
+        begin
+          dx := tx - txmid;
+          dy := ty - tymid;
+          r := Sqrt(dx * dx + dy * dy);
+          if r = 0 then
+            begin
+              fx := 0;
+              fy := 0;
+            end
+          else
+            begin
+              theta := ArcTan2(dx,dy) - r / Amount - OFFSET;
+              fx := r * Cos(theta);
+              fy := r * Sin(theta);
+            end;
+          fx := fx + fxmid;
+          fy := fy + fymid;
+          ify := Trunc(fy);
+          ifx := Trunc(fx);
+          if fy >= 0  then
+            begin
+              weight_y[1] := fy - ify;
+              weight_y[0] := 1 - weight_y[1];
+            end
+          else
+            begin
+              weight_y[0] := - (fy - ify);
+              weight_y[1] := 1 - weight_y[0];
+            end;
+          if fx >= 0 then
+            begin
+              weight_x[1] := fx - ifx;
+              weight_x[0] := 1 - weight_x[1];
+            end
+          else
+            begin
+              weight_x[0] := - (fx - ifx);
+              Weight_x[1] := 1 - weight_x[0];
+            end;
+          if ifx < 0 then
+            ifx := Pred(Width) - (- ifx mod Width)
+          else
+            if ifx > Pred(Width)  then
+              ifx := ifx mod Width;
+          if ify < 0 then
+            ify := Pred(Height) - (-ify mod Height)
+          else
+            if ify > Pred(Height) then
+              ify := ify mod Height;
+          total_red   := 0.0;
+          total_green := 0.0;
+          total_blue  := 0.0;
+          for ix := 0 to 1 do
+            begin
+              for iy := 0 to 1 do
+                begin
+                  if ify + iy < Height then
+                    sli := ScanLine[ify + iy]
+                  else
+                    sli := ScanLine[Height - ify - iy];
+                  if ifx + ix < Width then
+                    begin
+                      new_red := sli^[ifx + ix].r;
+                      new_green := sli^[ifx + ix].g;
+                      new_blue := sli^[ifx + ix].b;
+                    end
+                  else
+                    begin
+                      new_red := sli^[Width - ifx - ix].r;
+                      new_green := sli^[Width - ifx - ix].g;
+                      new_blue := sli^[Width - ifx - ix].b;
+                    end;
+                  weight := weight_x[ix] * weight_y[iy];
+                  total_red   := total_red   + new_red   * weight;
+                  total_green := total_green + new_green * weight;
+                  total_blue  := total_blue  + new_blue  * weight;
+                end;
+            end;
+          Case bitCount of
+            24 :
+              begin
+                slo := bmp.ScanLine[ty];
+                slo^[tx].r := Round(total_red);
+                slo^[tx].g := Round(total_green);
+                slo^[tx].b := Round(total_blue);
+              end;
+          else
+            // You can implement this procedure for 16,8,4,2 and 32 BitCount's DIB
+            Exit;
+          end;
+        end;
+    end;
+end;
+
+//--------------------------------------------------------------------------------------------------
+function TDIB.TrimInt(i,Min,Max: Integer): Integer;
+begin
+  if i > Max then
+    Result := Max
+  else
+    if i < Min then
+      Result := Min
+    else
+      Result := i;
+end;
+
+//--------------------------------------------------------------------------------------------------
+function TDIB.IntToByte(i:Integer):Byte;
+begin
+  if i > 255 then
+    Result := 255
+  else
+    if i < 0 then
+      Result := 0
+    else
+      Result := i;
+end;
+
+//--------------------------------------------------------------------------------------------------
+// End of these New Special Effect                                                                //
+// Please contributes to add effects and filters to this collection                               //
+// Please, work to implement 32,16,8,4,2 BitCount's DIB                                           //
+// Have fun - Mickey - Good job                                                                   //
+//--------------------------------------------------------------------------------------------------
+
+{  TCustomDXDIB  }
+
+constructor TCustomDXDIB.Create(AOnwer: TComponent);
+begin
+  inherited Create(AOnwer);
+  FDIB := TDIB.Create;
+end;
+
+destructor TCustomDXDIB.Destroy;
+begin
+  FDIB.Free;
+  inherited Destroy;
+end;
+
+procedure TCustomDXDIB.SetDIB(Value: TDIB);
+begin
+  FDIB.Assign(Value);
+end;
+
+{  TCustomDXPaintBox  }
+
+constructor TCustomDXPaintBox.Create(AOwner: TComponent);
+begin
+  inherited Create(AOwner);
+  FDIB := TDIB.Create;
+
+  ControlStyle := ControlStyle + [csReplicatable];
+  Height := 105;
+  Width := 105;
+end;
+
+destructor TCustomDXPaintBox.Destroy;
+begin
+  FDIB.Free;
+  inherited Destroy;
+end;
+
+function TCustomDXPaintBox.GetPalette: HPALETTE;
+begin
+  Result := FDIB.Palette;
+end;
+
+procedure TCustomDXPaintBox.Paint;
+
+  procedure Draw2(Width, Height: Integer);
+  begin
+    if (Width<>FDIB.Width) or (Height<>FDIB.Height) then
+    begin
+      if FCenter then
+      begin
+        inherited Canvas.StretchDraw(Bounds(-(Width-ClientWidth) div 2,
+          -(Height-ClientHeight) div 2, Width, Height), FDIB);
+      end else
+      begin
+        inherited Canvas.StretchDraw(Bounds(0, 0, Width, Height), FDIB);
+      end;
+    end else
+    begin
+      if FCenter then
+      begin
+        inherited Canvas.Draw(-(Width-ClientWidth) div 2, -(Height-ClientHeight) div 2,
+          FDIB);
+      end else
+      begin
+        inherited Canvas.Draw(0, 0, FDIB);
+      end;
+    end;
+  end;
+
+var
+  r, r2: Single;
+  ViewWidth2, ViewHeight2: Integer;
+begin
+  inherited Paint;
+
+  with inherited Canvas do
+  begin
+    if (csDesigning in ComponentState) then
+    begin
+      Pen.Style := psDash;
+      Brush.Style := bsClear;
+      Rectangle(0, 0, Width, Height);
+    end;
+
+    if FDIB.Empty then Exit;
+
+    if (FViewWidth>0) or (FViewHeight>0) then
+    begin
+      ViewWidth2 := FViewWidth;
+      if ViewWidth2=0 then ViewWidth2 := FDIB.Width;
+      ViewHeight2 := FViewHeight;
+      if ViewHeight2=0 then ViewHeight2 := FDIB.Height;
+
+      if FAutoStretch then
+      begin
+        if (ClientWidth<ViewWidth2) or (ClientHeight<ViewHeight2) then
+        begin
+          r := ViewWidth2/ClientWidth;
+          r2 := ViewHeight2/ClientHeight;
+          if r>r2 then
+            r := r2;
+          Draw2(Round(r*ClientWidth), Round(r*ClientHeight));
+        end else
+          Draw2(ViewWidth2, ViewHeight2);
+      end else
+        Draw2(ViewWidth2, ViewHeight2);
+    end else
+    begin
+      if FAutoStretch then
+      begin
+        if (FDIB.Width>ClientWidth) or (FDIB.Height>ClientHeight) then
+        begin
+          r := ClientWidth/FDIB.Width;
+          r2 := ClientHeight/FDIB.Height;
+          if r>r2 then
+            r := r2;
+          Draw2(Round(r*FDIB.Width), Round(r*FDIB.Height));
+        end else
+          Draw2(FDIB.Width, FDIB.Height);
+      end else
+      if FStretch then
+      begin
+        if FKeepAspect then
+        begin
+          r := ClientWidth/FDIB.Width;
+          r2 := ClientHeight/FDIB.Height;
+          if r>r2 then
+            r := r2;
+          Draw2(Round(r*FDIB.Width), Round(r*FDIB.Height));
+        end else
+          Draw2(ClientWidth, ClientHeight);
+      end else
+        Draw2(FDIB.Width, FDIB.Height);
+    end;
+  end;
+end;
+
+procedure TCustomDXPaintBox.SetAutoStretch(Value: Boolean);
+begin
+  if FAutoStretch<>Value then
+  begin
+    FAutoStretch := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomDXPaintBox.SetCenter(Value: Boolean);
+begin
+  if FCenter<>Value then
+  begin
+    FCenter := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomDXPaintBox.SetDIB(Value: TDIB);
+begin
+  if FDIB<>Value then
+  begin
+    FDIB.Assign(Value);
+    Invalidate;
+  end;
+end;
+
+procedure TCustomDXPaintBox.SetKeepAspect(Value: Boolean);
+begin
+  if Value<>FKeepAspect then
+  begin
+    FKeepAspect := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomDXPaintBox.SetStretch(Value: Boolean);
+begin
+  if Value<>FStretch then
+  begin
+    FStretch := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomDXPaintBox.SetViewWidth(Value: Integer);
+begin
+  if Value<0 then Value := 0;
+  if Value<>FViewWidth then
+  begin
+    FViewWidth := Value;
+    Invalidate;
+  end;
+end;
+
+procedure TCustomDXPaintBox.SetViewHeight(Value: Integer);
+begin
+  if Value<0 then Value := 0;
+  if Value<>FViewHeight then
+  begin
+    FViewHeight := Value;
+    Invalidate;
+  end;
+end;
+
+initialization
+  TPicture.RegisterClipBoardFormat(CF_DIB, TDIB);
+  TPicture.RegisterFileFormat('dib', 'Device Independent Bitmap', TDIB);
+finalization
+  TPicture.UnRegisterGraphicClass(TDIB);
+
+  FEmptyDIBImage.Free;
+  FPaletteManager.Free;
+end.
