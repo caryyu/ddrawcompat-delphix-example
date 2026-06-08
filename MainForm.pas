@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, StdCtrls,
-  ExtCtrls, DXDraws;
+  ExtCtrls, DirectX, DXDraws;
 
 type
   TMainForm = class(TForm)
@@ -13,14 +13,18 @@ type
     FEdit: TEdit;
     FButton: TButton;
     FStressCheck: TCheckBox;
+    FPrimaryClipperCheck: TCheckBox;
     FMemo: TMemo;
     FInfoLabel: TLabel;
-    FTimer: TTimer;
     FFrame: Integer;
+    FPrimaryClipperApplied: Integer;
     procedure AddWindowStyles(AHandle: HWND; AStyles: Longint);
     procedure EnsureDirectDrawInitialized;
-    procedure RenderTimer(Sender: TObject);
+    procedure ApplyPrimaryClipperSetting;
+    procedure ApplicationIdle(Sender: TObject; var Done: Boolean);
     procedure DrawFrame;
+    procedure DrawFrameToSurfaceViaLock;
+    procedure PresentToPrimary;
     procedure StressChildWindows;
     procedure WMEraseBkgnd(var Message: TWMEraseBkgnd); message WM_ERASEBKGND;
   public
@@ -46,7 +50,7 @@ begin
   Font.Size := 9;
   DoubleBuffered := False;
   HandleNeeded;
-  AddWindowStyles(Handle, WS_CLIPCHILDREN or WS_CLIPSIBLINGS);
+  AddWindowStyles(Handle, WS_CLIPSIBLINGS);
 
   FDXDraw := TDXDraw.Create(Self);
   FDXDraw.Parent := Self;
@@ -81,33 +85,43 @@ begin
   FStressCheck.Checked := True;
   FStressCheck.TabOrder := 2;
   FStressCheck.BringToFront;
+
+  FPrimaryClipperCheck := TCheckBox.Create(Self);
+  FPrimaryClipperCheck.Parent := Self;
+  FPrimaryClipperCheck.SetBounds(440, 156, 220, 24);
+  FPrimaryClipperCheck.Caption := 'Use primary HWND clipper';
+  FPrimaryClipperCheck.Checked := False;
+  FPrimaryClipperCheck.TabOrder := 3;
+  FPrimaryClipperCheck.BringToFront;
+
   FMemo := TMemo.Create(Self);
   FMemo.Parent := Self;
   FMemo.SetBounds(104, 132, 300, 76);
   FMemo.Lines.Text := 'Sibling TMemo'#13#10'If this flickers or disappears, child HWND clipping is not preserved.';
-  FMemo.TabOrder := 3;
+  FMemo.TabOrder := 4;
   FMemo.BringToFront;
 
   FInfoLabel := TLabel.Create(Self);
   FInfoLabel.Parent := Self;
-  FInfoLabel.SetBounds(24, 404, 660, 72);
+  FInfoLabel.SetBounds(24, 400, 660, 100);
   FInfoLabel.AutoSize := False;
   FInfoLabel.WordWrap := True;
   FInfoLabel.Caption :=
-    'This sample uses a DelphiX TDXDraw child window in windowed blit mode. ' +
-    'DelphiX creates a DirectDraw primary surface, attaches an HWND clipper to the TDXDraw window, ' +
-    'and this sample manually calls Primary.Draw to a screen-coordinate form client rect. Mild stress mode only brings sibling child HWNDs to front and invalidates them.';
+    'Rendering via Surface.Lock/Unlock + Primary.Draw in OnIdle (no frame cap). ' +
+    'Present target intentionally uses FORM ClientToScreen + ClientRect (wider overdraw test). ' +
+    'Parent keeps WS_CLIPSIBLINGS only (no WS_CLIPCHILDREN). ' +
+    'Stress mode does not force child repaint; this helps reproduce persistent text overdraw. ' +
+    'Toggle "Use primary HWND clipper" at runtime for A/B test.';
 
-  FTimer := TTimer.Create(Self);
-  FTimer.Interval := 16;
-  FTimer.OnTimer := RenderTimer;
-  FTimer.Enabled := True;
+  FFrame := 0;
+  FPrimaryClipperApplied := -1;
+
+  Application.OnIdle := ApplicationIdle;
 end;
 
 destructor TMainForm.Destroy;
 begin
-  if Assigned(FTimer) then
-    FTimer.Enabled := False;
+  Application.OnIdle := nil;
   if Assigned(FDXDraw) then
     FDXDraw.Finalize;
   inherited Destroy;
@@ -135,6 +149,7 @@ begin
     Exit;
 
   FDXDraw.Initialize;
+  ApplyPrimaryClipperSetting;
 
   SetWindowPos(FDXDraw.Handle, HWND_BOTTOM, 0, 0, 0, 0,
     SWP_NOMOVE or SWP_NOSIZE or SWP_NOACTIVATE);
@@ -143,7 +158,30 @@ begin
   FMemo.BringToFront;
 end;
 
-procedure TMainForm.RenderTimer(Sender: TObject);
+procedure TMainForm.ApplyPrimaryClipperSetting;
+var
+  WantedState: Integer;
+begin
+  if not FDXDraw.Initialized then
+    Exit;
+
+  if FPrimaryClipperCheck.Checked then
+    WantedState := 1
+  else
+    WantedState := 0;
+
+  if WantedState = FPrimaryClipperApplied then
+    Exit;
+
+  if WantedState <> 0 then
+    FDXDraw.Primary.Clipper := FDXDraw.Clipper
+  else
+    FDXDraw.Primary.Clipper := nil;
+
+  FPrimaryClipperApplied := WantedState;
+end;
+
+procedure TMainForm.ApplicationIdle(Sender: TObject; var Done: Boolean);
 begin
   try
     EnsureDirectDrawInitialized;
@@ -151,72 +189,100 @@ begin
   except
     on E: Exception do
     begin
-      FTimer.Enabled := False;
+      Application.OnIdle := nil;
       Caption := 'DirectDraw initialization/render failed: ' + E.ClassName + ': ' + E.Message;
     end;
   end;
+  Done := False;
 end;
 
 procedure TMainForm.DrawFrame;
-var
-  C: TCanvas;
-  I: Integer;
-  X: Integer;
-  R: TRect;
-  DestRect: TRect;
 begin
   if not FDXDraw.Initialized then
     Exit;
 
   Inc(FFrame);
-  C := FDXDraw.Surface.Canvas;
-  try
-    C.Brush.Color := RGB(8, 18, 28);
-    C.FillRect(Rect(0, 0, FDXDraw.SurfaceWidth, FDXDraw.SurfaceHeight));
 
-    for I := 0 to 11 do
-    begin
-      C.Brush.Color := RGB(20 + I * 12, 70 + (I mod 3) * 30, 120 + (I mod 4) * 20);
-      X := ((FFrame * 3) + I * 72) mod 760 - 100;
-      R := Rect(X, 38 + I * 22, X + 96, 58 + I * 22);
-      C.FillRect(R);
-    end;
-
-    C.Brush.Style := bsClear;
-    C.Font.Color := clWhite;
-    C.Font.Size := 12;
-    C.TextOut(28, 28, 'Manual Primary.Draw frame: ' + IntToStr(FFrame));
-    C.TextOut(28, 300, 'This bypasses TDXDraw.Flip and blits to the form client rect in screen coordinates.');
-    C.TextOut(28, 324, 'Mild stress mode calls BringToFront and Invalidate on sibling child HWNDs.');
-    C.Brush.Style := bsSolid;
-  finally
-    FDXDraw.Surface.Canvas.Release;
-  end;
-
-  DestRect := ClientRect;
-  Windows.ClientToScreen(Handle, DestRect.TopLeft);
-  Windows.ClientToScreen(Handle, DestRect.BottomRight);
-  FDXDraw.Primary.Draw(DestRect.Left, DestRect.Top, FDXDraw.Surface.ClientRect,
-    FDXDraw.Surface, False);
+  ApplyPrimaryClipperSetting;
+  DrawFrameToSurfaceViaLock;
+  PresentToPrimary;
 
   if FStressCheck.Checked then
     StressChildWindows;
 end;
 
+procedure TMainForm.DrawFrameToSurfaceViaLock;
+var
+  ddsd: TDDSurfaceDesc;
+  Row, Col, I, BarX: Integer;
+  Pitch: Integer;
+  Bits: Pointer;
+  LinePtr: PByte;
+  PixelColor: Word;
+  FillRect: TRect;
+begin
+  ddsd.dwSize := SizeOf(ddsd);
+  FillRect := Rect(0, 0, FDXDraw.SurfaceWidth, FDXDraw.SurfaceHeight);
+  if not FDXDraw.Surface.Lock(FillRect, ddsd) then
+    Exit;
+
+  try
+    if ddsd.ddpfPixelFormat.dwRGBBitCount <> 16 then
+      Exit;
+
+    Pitch := ddsd.lPitch;
+    Bits := ddsd.lpSurface;
+
+    for Row := 0 to FDXDraw.SurfaceHeight - 1 do
+    begin
+      LinePtr := PByte(Integer(Bits) + Row * Pitch);
+      for Col := 0 to FDXDraw.SurfaceWidth - 1 do
+        PWord(Integer(LinePtr) + Col * 2)^ := Word($121C);
+    end;
+
+    for I := 0 to 11 do
+    begin
+      BarX := ((FFrame * 3) + I * 72) mod 760 - 100;
+      if BarX + 96 > 0 then
+      begin
+        PixelColor := Word(((20 + I * 12) and $1F) shl 11) or
+                       Word(((70 + (I mod 3) * 30) and $3F) shl 5) or
+                       Word((120 + (I mod 4) * 20) and $1F);
+        for Row := 38 + I * 22 to 57 + I * 22 do
+        begin
+          if (Row >= 0) and (Row < FDXDraw.SurfaceHeight) then
+          begin
+            LinePtr := PByte(Integer(Bits) + Row * Pitch);
+            for Col := BarX to BarX + 95 do
+            begin
+              if (Col >= 0) and (Col < FDXDraw.SurfaceWidth) then
+                PWord(Integer(LinePtr) + Col * 2)^ := PixelColor;
+            end;
+          end;
+        end;
+      end;
+    end;
+  finally
+    FDXDraw.Surface.UnLock;
+  end;
+end;
+
+procedure TMainForm.PresentToPrimary;
+var
+  DestRect: TRect;
+begin
+  DestRect := ClientRect;
+  Windows.ClientToScreen(Handle, DestRect.TopLeft);
+  Windows.ClientToScreen(Handle, DestRect.BottomRight);
+
+  FDXDraw.Primary.Draw(DestRect.Left, DestRect.Top, FDXDraw.Surface.ClientRect,
+    FDXDraw.Surface, False);
+end;
+
 procedure TMainForm.StressChildWindows;
 begin
-  if (FFrame mod 180) = 0 then
-    FEdit.Text := Format('Sibling TEdit mild stress frame %d', [FFrame]);
-
-  FEdit.BringToFront;
-  FButton.BringToFront;
-  FStressCheck.BringToFront;
-  FMemo.BringToFront;
-
-  FEdit.Invalidate;
-  FButton.Invalidate;
-  FStressCheck.Invalidate;
-  FMemo.Invalidate;
+  if (FFrame mod 120) = 0 then
+    FStressCheck.Caption := Format('Stress active (%d)', [FFrame]);
 end;
 
 procedure TMainForm.WMEraseBkgnd(var Message: TWMEraseBkgnd);
